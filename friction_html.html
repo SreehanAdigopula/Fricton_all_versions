@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friction V1 Improved</title>
+    <link rel="stylesheet" href="fictioncss.css">
+</head>
+<body>
+    <main class="page-shell">
+        <section class="hero-panel">
+            <div>
+                <p class="eyebrow">Focus Trainer</p>
+                <h1>Friction</h1>
+                <p class="hero-copy">
+                    Build cleaner work sessions, track distractions, and help your pet grow
+                    as your consistency improves.
+                </p>
+            </div>
+            <div class="pet-summary">
+                <span class="pet-avatar" id="petAvatar">Lv 1</span>
+                <div>
+                    <p class="info-label">Pet Level</p>
+                    <p class="info-value" id="petInfo">1</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-grid">
+            <article class="panel">
+                <div class="panel-header">
+                    <div>
+                        <p class="info-label">Next Session</p>
+                        <p class="info-value" id="sessionInfo">30 minutes</p>
+                    </div>
+                    <span class="status-pill" id="sessionStatus">Ready</span>
+                </div>
+
+                <div class="timer-card timer-spotlight">
+                    <div class="timer-orbit">
+                        <div class="timer-center">
+                            <p class="info-label">Time Left</p>
+                            <p id="timerDisplay">30:00</p>
+                        </div>
+                    </div>
+                    <p class="timer-note" id="timerNote">
+                        Start a focus block and let the clock run while you work.
+                    </p>
+                </div>
+
+                <div class="action-row">
+                    <button id="startBtn" class="primary-btn">Start Session</button>
+                    <button id="resetWeekBtn" class="ghost-btn">Reset Week</button>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <div>
+                        <p class="info-label">Weekly Snapshot</p>
+                        <p class="info-value" id="weeklyHeadline">0 completed this week</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <p class="info-label">Completed</p>
+                        <p class="stat-value" id="weeklyCompleted">0</p>
+                    </div>
+                    <div class="stat-box">
+                        <p class="info-label">Avg Distractions</p>
+                        <p class="stat-value" id="weeklyDistractions">0.00</p>
+                    </div>
+                    <div class="stat-box">
+                        <p class="info-label">This Session Breaks</p>
+                        <p class="stat-value" id="breakInfo">0</p>
+                    </div>
+                    <div class="stat-box">
+                        <p class="info-label">This Session Distracted</p>
+                        <p class="stat-value" id="distractionInfo">0</p>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="panel" id="sessionControls" hidden>
+            <div class="panel-header">
+                <div>
+                    <p class="info-label">Session Controls</p>
+                    <p class="info-value">Record the outcome of your focus block</p>
+                </div>
+            </div>
+
+            <div class="controls-grid">
+                <button id="completeBtn" class="success-btn">Completed</button>
+                <button id="distractedBtn" class="warning-btn">Distracted</button>
+                <button id="breakBtn" class="ghost-btn">Break</button>
+                <button id="failBtn" class="danger-btn">Failed</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <p class="info-label">System Output</p>
+                    <p class="info-value">Live feedback from your focus system</p>
+                </div>
+            </div>
+            <p id="output" class="output-card">No data yet</p>
+        </section>
+    </main>
+
+    <div class="storage-toast" id="storageToast" hidden>
+        Progress is running in temporary mode because local saving is blocked in this browser tab.
+    </div>
+
+    <script src="frictionJS.js"></script>
+</body>
+</html>
