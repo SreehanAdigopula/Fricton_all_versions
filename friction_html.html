@@ -3,114 +3,383 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Friction V1 Improved</title>
+    <title>Friction: Adaptor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="fictioncss.css">
 </head>
 <body>
-    <main class="page-shell">
-        <section class="hero-panel">
-            <div>
-                <p class="eyebrow">Focus Trainer</p>
+    <main class="app-shell">
+        <section class="hero-board wobble-xl pin-card">
+            <div class="hero-copy">
+                <p class="scribble-label">Welcome Back</p>
                 <h1>Friction</h1>
-                <p class="hero-copy">
-                    Build cleaner work sessions, track distractions, and help your pet grow
-                    as your consistency improves.
+                <p class="hero-subtitle">Adaptive focus support for real work, real distractions, and real recovery.</p>
+                <p class="hero-text" id="heroPurpose">
+                    A hand-drawn focus system that helps you track sessions, adapt your timer, and grow your pet as your consistency improves.
                 </p>
-            </div>
-            <div class="pet-summary">
-                <span class="pet-avatar" id="petAvatar">Lv 1</span>
-                <div>
-                    <p class="info-label">Pet Level</p>
-                    <p class="info-value" id="petInfo">1</p>
+                <div class="hero-actions">
+                    <button id="heroStartBtn" class="sketch-btn primary-btn">Jump Into Focus</button>
+                    <button id="heroPetBtn" class="sketch-btn secondary-btn">See Pet Levels</button>
                 </div>
+            </div>
+
+            <aside class="hero-note wobble-md rotate-right">
+                <span class="tape tape-top"></span>
+                <p class="mini-label">Current Buddy</p>
+                <div class="pet-stamp" id="petAvatar">Lv 1</div>
+                <p class="note-copy">Keep your streak alive to help your pet grow into new forms and unlock cleaner sessions.</p>
+            </aside>
+        </section>
+
+        <nav class="tab-strip" aria-label="Primary">
+            <button class="tab-btn is-active" data-tab="home" id="tabHome">Home</button>
+            <button class="tab-btn" data-tab="focus" id="tabFocus">Focus</button>
+            <button class="tab-btn" data-tab="pet" id="tabPet">Pet</button>
+            <button class="tab-btn" data-tab="settings" id="tabSettings">Settings</button>
+        </nav>
+
+        <section class="tab-panel is-active" id="panel-home" data-panel="home">
+            <div class="panel-grid panel-grid-home">
+                <article class="board-card wobble-lg rotate-left">
+                    <span class="tape tape-left"></span>
+                    <p class="scribble-label">Today's Brief</p>
+                    <h2 class="card-title">Your adaptive focus dashboard.</h2>
+                    <p class="card-copy" id="welcomeMessage">
+                        Start your next session, check your weekly stats, and keep an eye on your pet's progress.
+                    </p>
+                    <div class="headline-stats">
+                        <div class="blob-stat wobble-md">
+                            <span class="mini-label">Next Session</span>
+                            <strong id="sessionInfo">30 minutes</strong>
+                        </div>
+                        <div class="blob-stat wobble-md alt-blob">
+                            <span class="mini-label">Status</span>
+                            <strong id="sessionStatus">Ready</strong>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="board-card sticky-card wobble-md rotate-right">
+                    <p class="scribble-label">Week Snapshot</p>
+                    <div class="stats-grid">
+                        <div class="stat-card wobble-md">
+                            <span class="mini-label">Completed</span>
+                            <strong class="stat-number" id="weeklyCompleted">0</strong>
+                        </div>
+                        <div class="stat-card wobble-md">
+                            <span class="mini-label">Avg Distractions</span>
+                            <strong class="stat-number" id="weeklyDistractions">0.00</strong>
+                        </div>
+                        <div class="stat-card wobble-md">
+                            <span class="mini-label">Breaks</span>
+                            <strong class="stat-number" id="breakInfo">0</strong>
+                        </div>
+                        <div class="stat-card wobble-md">
+                            <span class="mini-label">Distractions</span>
+                            <strong class="stat-number" id="distractionInfo">0</strong>
+                        </div>
+                    </div>
+                    <p class="sticky-summary" id="weeklyHeadline">0 completed this week</p>
+                </article>
+            </div>
+
+            <div class="panel-grid panel-grid-home-secondary">
+                <article class="board-card wobble-lg">
+                    <p class="scribble-label">System Note</p>
+                    <p id="output" class="speech-bubble wobble-md">No data yet</p>
+                </article>
+
+                <article class="board-card wobble-md rotate-left">
+                    <p class="scribble-label">Quick Actions</p>
+                    <div class="stack-actions">
+                        <button id="homeFocusBtn" class="sketch-btn primary-btn">Open Focus Tab</button>
+                        <button id="resetWeekBtn" class="sketch-btn secondary-btn">Reset Week</button>
+                    </div>
+                </article>
+            </div>
+
+            <div class="panel-grid panel-grid-home-tertiary">
+                <article class="board-card wobble-md rotate-right">
+                    <p class="scribble-label">Focus Setup</p>
+                    <strong class="card-highlight" id="homeEnvironmentSummary">Nature Track 1</strong>
+                    <p class="card-copy" id="homeEnvironmentDetail">Your study media is ready inside the focus tab.</p>
+                </article>
+
+                <article class="board-card wobble-md rotate-left">
+                    <p class="scribble-label">Buddy Progress</p>
+                    <strong class="card-highlight" id="homePetSummary">Dragon Baby · Lv 1</strong>
+                    <p class="card-copy" id="homePetDetail">5 sessions until your next pet growth moment.</p>
+                </article>
+
+                <article class="board-card wobble-md rotate-right">
+                    <p class="scribble-label">Momentum</p>
+                    <strong class="card-highlight" id="homeMomentumSummary">0 clean wins</strong>
+                    <p class="card-copy" id="homeMomentumDetail">Three clean sessions in a row still unlock extra time.</p>
+                </article>
             </div>
         </section>
 
-        <section class="dashboard-grid">
-            <article class="panel">
-                <div class="panel-header">
-                    <div>
-                        <p class="info-label">Next Session</p>
-                        <p class="info-value" id="sessionInfo">30 minutes</p>
-                    </div>
-                    <span class="status-pill" id="sessionStatus">Ready</span>
+        <section class="tab-panel" id="panel-focus" data-panel="focus" hidden>
+            <article class="board-card media-board wobble-lg">
+                <p class="scribble-label">Study Media</p>
+                <div class="media-meta wobble-md">
+                    <p class="mini-label">Now Playing</p>
+                    <strong id="focusMediaTitle">Nature Track 1 ready</strong>
+                    <p id="focusMediaCaption">Pick a Nature, Handpan, or Custom source and keep it inside Friction.</p>
+                    <span class="media-badge" id="focusMediaType">YouTube video</span>
                 </div>
+                <div class="media-stage wobble-lg" id="focusMediaStage" data-shell="empty">
+                    <div class="media-empty" id="focusMediaEmpty">Choose a study source to load it here.</div>
+                    <div class="generated-media-card" id="focusGeneratedVisual" hidden>
+                        <span class="generated-media-chip" id="focusGeneratedChip">Built-in environment</span>
+                        <strong id="focusGeneratedTitle">Pick a built-in sound</strong>
+                        <p id="focusGeneratedCaption">Nature, Noise, and Handpan now run directly inside Friction.</p>
+                    </div>
+                    <iframe
+                        id="focusMediaFrame"
+                        class="focus-media-frame"
+                        title="Focus environment media"
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        referrerpolicy="strict-origin-when-cross-origin"
+                    ></iframe>
+                </div>
+            </article>
 
-                <div class="timer-card timer-spotlight">
-                    <div class="timer-orbit">
-                        <div class="timer-center">
-                            <p class="info-label">Time Left</p>
+            <div class="panel-grid panel-grid-focus">
+                <article class="board-card timer-board wobble-xl">
+                    <span class="tape tape-right"></span>
+                    <p class="scribble-label">Focus Session</p>
+                    <div class="timer-stage wobble-xl">
+                        <div class="timer-stage-inner wobble-xl">
+                            <p class="mini-label">Time Left</p>
                             <p id="timerDisplay">30:00</p>
                         </div>
                     </div>
-                    <p class="timer-note" id="timerNote">
-                        Start a focus block and let the clock run while you work.
-                    </p>
-                </div>
+                    <p class="timer-note" id="timerNote">Start a focus block and let the clock run while you work.</p>
+                    <div class="stack-actions two-up">
+                        <button id="startBtn" class="sketch-btn primary-btn">Start Session</button>
+                        <button id="focusHomeBtn" class="sketch-btn ghost-btn">Back To Home</button>
+                    </div>
+                </article>
 
-                <div class="action-row">
-                    <button id="startBtn" class="primary-btn">Start Session</button>
-                    <button id="resetWeekBtn" class="ghost-btn">Reset Week</button>
-                </div>
-            </article>
+                <article class="board-card wobble-lg rotate-right">
+                    <p class="scribble-label">Session Controls</p>
+                    <div class="counter-row">
+                        <div class="counter-chip wobble-md">
+                            <span class="mini-label">Distractions</span>
+                            <strong id="focusDistractionCounter">0 / 3</strong>
+                        </div>
+                        <div class="counter-chip wobble-md">
+                            <span class="mini-label">Breaks</span>
+                            <strong id="focusBreakCounter">0 / 3</strong>
+                        </div>
+                    </div>
+                    <div class="controls-grid" id="sessionControls">
+                        <button id="completeBtn" class="sketch-btn success-btn">Completed</button>
+                        <button id="distractedBtn" class="sketch-btn warning-btn">Distracted</button>
+                        <button id="breakBtn" class="sketch-btn secondary-btn">Break</button>
+                        <button id="failBtn" class="sketch-btn danger-btn">Failed</button>
+                    </div>
+                    <div class="focus-rulebook wobble-md">
+                        <p class="mini-label">Rules In Play</p>
+                        <ul>
+                            <li>3 clean sessions in a row extends the next sessions.</li>
+                            <li>Too many breaks or distractions shortens the next one.</li>
+                            <li>Weekly consistency helps your pet level up.</li>
+                        </ul>
+                    </div>
+                </article>
+            </div>
 
-            <article class="panel">
-                <div class="panel-header">
-                    <div>
-                        <p class="info-label">Weekly Snapshot</p>
-                        <p class="info-value" id="weeklyHeadline">0 completed this week</p>
-                    </div>
-                </div>
+            <div class="panel-grid panel-grid-focus-extra">
+                <article class="board-card wobble-lg rotate-left">
+                    <p class="scribble-label">Focus Environment</p>
+                    <p class="card-copy environment-copy">Pick from Nature, Noise, Handpan, or load a custom study source on the side.</p>
+                    <div class="track-stack">
+                        <section class="track-group wobble-md">
+                            <div class="track-group-head">
+                                <span class="mini-label">Nature Collection</span>
+                                <p class="track-group-copy">Rain, waterfalls, frogs, owls, and other real nature ambience from your PDF list.</p>
+                            </div>
+                            <div class="track-card-grid" id="natureTrackList"></div>
+                        </section>
 
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <p class="info-label">Completed</p>
-                        <p class="stat-value" id="weeklyCompleted">0</p>
+                        <section class="track-group wobble-md">
+                            <div class="track-group-head">
+                                <span class="mini-label">Noise Collection</span>
+                                <p class="track-group-copy">Color noise only: white, brown, and pink for cleaner concentration.</p>
+                            </div>
+                            <div class="track-card-grid" id="noiseTrackList"></div>
+                        </section>
+
+                        <section class="track-group wobble-md">
+                            <div class="track-group-head">
+                                <span class="mini-label">Handpan Collection</span>
+                                <p class="track-group-copy">Your handpan tracks from the PDF list.</p>
+                            </div>
+                            <div class="track-card-grid" id="handpanTrackList"></div>
+                        </section>
                     </div>
-                    <div class="stat-box">
-                        <p class="info-label">Avg Distractions</p>
-                        <p class="stat-value" id="weeklyDistractions">0.00</p>
+                    <div class="environment-status wobble-md">
+                        <span class="mini-label">Current Environment</span>
+                        <strong id="activeEnvironmentLabel">Nature</strong>
+                        <p class="current-track-label" id="currentTrackLabel">Nature Track 1</p>
                     </div>
-                    <div class="stat-box">
-                        <p class="info-label">This Session Breaks</p>
-                        <p class="stat-value" id="breakInfo">0</p>
+                </article>
+
+                <article class="board-card sticky-card wobble-lg rotate-right">
+                    <p class="scribble-label">Environment Controls</p>
+                    <div class="environment-controls">
+                        <div class="stack-actions two-up">
+                            <button id="environmentPlayBtn" class="sketch-btn primary-btn">Play</button>
+                            <button id="environmentPauseBtn" class="sketch-btn ghost-btn">Pause</button>
+                        </div>
+                        <label class="setting-item wobble-md">
+                            <span class="mini-label">Environment Volume</span>
+                            <input id="environmentVolume" class="slider-input" type="range" min="0" max="100" value="55">
+                            <span id="environmentVolumeValue">55%</span>
+                        </label>
+                        <button id="showMediaBtn" class="sketch-btn secondary-btn">Reload Study Box</button>
                     </div>
-                    <div class="stat-box">
-                        <p class="info-label">This Session Distracted</p>
-                        <p class="stat-value" id="distractionInfo">0</p>
+                    <div class="custom-link-box wobble-md">
+                        <span class="mini-label">Paste YouTube or Spotify URL</span>
+                        <input id="customMediaInput" class="sketch-input" type="url" placeholder="https://youtube.com/... or https://open.spotify.com/...">
+                        <div class="stack-actions three-up">
+                            <button id="saveCustomLinkBtn" class="sketch-btn secondary-btn">Save Link</button>
+                            <button id="openCustomLinkBtn" class="sketch-btn primary-btn">Open Source</button>
+                            <button id="removeCustomLinkBtn" class="sketch-btn danger-btn">Remove</button>
+                        </div>
+                        <p class="saved-link-meta" id="customMediaTypeLabel">No saved custom source yet.</p>
+                        <p class="saved-link" id="savedCustomLink">No custom link saved yet.</p>
                     </div>
-                </div>
-            </article>
+                </article>
+            </div>
         </section>
 
-        <section class="panel" id="sessionControls" hidden>
-            <div class="panel-header">
-                <div>
-                    <p class="info-label">Session Controls</p>
-                    <p class="info-value">Record the outcome of your focus block</p>
-                </div>
-            </div>
+        <section class="tab-panel" id="panel-pet" data-panel="pet" hidden>
+            <div class="panel-grid panel-grid-pet">
+                <article class="board-card wobble-xl rotate-left">
+                    <p class="scribble-label">Pet Progress</p>
+                    <div class="pet-zone">
+                        <div class="pet-portrait wobble-xl">
+                            <div class="pet-face">
+                                <span class="pet-eye"></span>
+                                <span class="pet-eye"></span>
+                            </div>
+                            <p class="pet-level-big" id="petLevelDisplay">Level 1</p>
+                        </div>
+                        <div class="pet-copy">
+                            <h2 class="card-title">Your focus buddy grows with better weeks.</h2>
+                            <p class="card-copy" id="petSummary">
+                                Finish 5 strong sessions with low distractions to unlock the next level.
+                            </p>
+                            <div class="pet-metrics">
+                                <div class="mini-metric wobble-md">
+                                    <span class="mini-label">Current Level</span>
+                                    <strong id="petInfo">1</strong>
+                                </div>
+                                <div class="mini-metric wobble-md">
+                                    <span class="mini-label">Next Goal</span>
+                                    <strong id="petGoal">5 sessions</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-            <div class="controls-grid">
-                <button id="completeBtn" class="success-btn">Completed</button>
-                <button id="distractedBtn" class="warning-btn">Distracted</button>
-                <button id="breakBtn" class="ghost-btn">Break</button>
-                <button id="failBtn" class="danger-btn">Failed</button>
+                <article class="board-card sticky-card wobble-lg rotate-right">
+                    <p class="scribble-label">Level Notes</p>
+                    <div class="level-list" id="petLevels">
+                        <article class="level-card wobble-md is-current">
+                            <span class="mini-label">Level 1</span>
+                            <strong>Paper Pup</strong>
+                            <p>Learns to sit with you while you build the habit.</p>
+                        </article>
+                        <article class="level-card wobble-md">
+                            <span class="mini-label">Level 2</span>
+                            <strong>Sticky Scout</strong>
+                            <p>Shows up after your first solid week of focused sessions.</p>
+                        </article>
+                        <article class="level-card wobble-md">
+                            <span class="mini-label">Level 3</span>
+                            <strong>Marker Hero</strong>
+                            <p>Unlocked by keeping distractions low for multiple milestones.</p>
+                        </article>
+                    </div>
+                </article>
             </div>
         </section>
 
-        <section class="panel">
-            <div class="panel-header">
-                <div>
-                    <p class="info-label">System Output</p>
-                    <p class="info-value">Live feedback from your focus system</p>
-                </div>
+        <section class="tab-panel" id="panel-settings" data-panel="settings" hidden>
+            <div class="panel-grid panel-grid-settings">
+                <article class="board-card wobble-lg rotate-left">
+                    <p class="scribble-label">Look & Feel</p>
+                    <div class="settings-stack">
+                        <label class="setting-item wobble-md">
+                            <span class="mini-label">Theme</span>
+                            <select id="themeSelect" class="sketch-select">
+                                <option value="classic">Classic Paper</option>
+                                <option value="blueprint">Blueprint Notes</option>
+                                <option value="sunset">Sunset Sticky</option>
+                            </select>
+                        </label>
+                        <label class="setting-item wobble-md">
+                            <span class="mini-label">Background Tint</span>
+                            <div class="color-row">
+                                <input id="paperTintInput" class="color-input" type="color" value="#fdfbf7">
+                                <span id="paperTintValue">#fdfbf7</span>
+                            </div>
+                        </label>
+                    </div>
+                </article>
+
+                <article class="board-card sticky-card wobble-lg rotate-right">
+                    <p class="scribble-label">Sound & Helpers</p>
+                    <div class="settings-stack">
+                        <label class="setting-item wobble-md">
+                            <span class="mini-label">Background Music</span>
+                            <select id="soundModeSelect" class="sketch-select">
+                                <option value="off">Off</option>
+                                <option value="hum">Soft Hum</option>
+                                <option value="pulse">Focus Pulse</option>
+                                <option value="noise">Rain Noise</option>
+                            </select>
+                        </label>
+                        <label class="setting-item wobble-md checkbox-item">
+                            <span class="mini-label">Session Hints</span>
+                            <input id="hintsToggle" type="checkbox" checked>
+                            <span>Show adaptive notes and small reminders around the app.</span>
+                        </label>
+                    </div>
+                </article>
             </div>
-            <p id="output" class="output-card">No data yet</p>
+
+            <div class="panel-grid panel-grid-settings">
+                <article class="board-card wobble-lg rotate-left">
+                    <p class="scribble-label">Pet Appearance</p>
+                    <label class="setting-item wobble-md">
+                        <span class="mini-label">Choose Your Buddy</span>
+                        <select id="petAppearanceSelect" class="sketch-select">
+                            <option value="dragon">Dragon</option>
+                            <option value="dog">Dog</option>
+                            <option value="cat">Cat</option>
+                            <option value="chicken">Chicken</option>
+                            <option value="phoenix">Phoenix</option>
+                            <option value="owl">Owl</option>
+                            <option value="fox">Fox</option>
+                            <option value="wolf">Wolf</option>
+                            <option value="bunny">Bunny</option>
+                            <option value="turtle">Turtle</option>
+                        </select>
+                    </label>
+                </article>
+            </div>
         </section>
     </main>
 
-    <div class="storage-toast" id="storageToast" hidden>
+    <div class="storage-toast wobble-md" id="storageToast" hidden>
         Progress is running in temporary mode because local saving is blocked in this browser tab.
     </div>
 
