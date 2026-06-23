@@ -57,6 +57,7 @@ const defaultState = {
     settings: {
         theme: "classic",
         paperTint: "#fdfbf7",
+        backgroundShape: "doodles",
         soundMode: "off",
         showHints: true,
         petAppearance: "dragon"
@@ -158,6 +159,7 @@ const elements = {
     themeSelect: document.getElementById("themeSelect"),
     paperTintInput: document.getElementById("paperTintInput"),
     paperTintValue: document.getElementById("paperTintValue"),
+    shapeSelect: document.getElementById("shapeSelect"),
     soundModeSelect: document.getElementById("soundModeSelect"),
     hintsToggle: document.getElementById("hintsToggle"),
     petAppearanceSelect: document.getElementById("petAppearanceSelect")
@@ -189,9 +191,9 @@ function bindEvents() {
     elements.appTabs.forEach((tabButton) => {
         tabButton.addEventListener("click", () => setActiveTab(tabButton.dataset.tab));
     });
-    elements.natureTrackList.addEventListener("click", handleTrackSelection);
-    elements.noiseTrackList.addEventListener("click", handleTrackSelection);
-    elements.handpanTrackList.addEventListener("click", handleTrackSelection);
+    elements.natureTrackList.addEventListener("change", handleTrackSelection);
+    elements.noiseTrackList.addEventListener("change", handleTrackSelection);
+    elements.handpanTrackList.addEventListener("change", handleTrackSelection);
     elements.focusMediaFrame.addEventListener("load", handleFocusMediaFrameLoad);
 
     elements.heroStartBtn.addEventListener("click", () => {
@@ -209,6 +211,7 @@ function bindEvents() {
     elements.resetWeekBtn.addEventListener("click", resetWeek);
     elements.themeSelect.addEventListener("change", (event) => updateTheme(event.target.value));
     elements.paperTintInput.addEventListener("input", (event) => updatePaperTint(event.target.value));
+    elements.shapeSelect.addEventListener("change", (event) => updateBackgroundShape(event.target.value));
     elements.soundModeSelect.addEventListener("change", (event) => updateSoundMode(event.target.value));
     elements.hintsToggle.addEventListener("change", (event) => updateHintsPreference(event.target.checked));
     elements.petAppearanceSelect.addEventListener("change", (event) => updatePetAppearance(event.target.value));
@@ -278,10 +281,13 @@ function normalizeTab(value) {
 
 function sanitizeSettings(savedSettings = {}) {
     return {
-        theme: ["classic", "blueprint", "sunset"].includes(savedSettings.theme)
+        theme: ["classic", "blueprint", "sunset", "forest", "midnight", "citrus"].includes(savedSettings.theme)
             ? savedSettings.theme
             : "classic",
         paperTint: typeof savedSettings.paperTint === "string" ? savedSettings.paperTint : "#fdfbf7",
+        backgroundShape: ["doodles", "orbit", "confetti", "calm", "minimal"].includes(savedSettings.backgroundShape)
+            ? savedSettings.backgroundShape
+            : "doodles",
         soundMode: ["off", "hum", "pulse", "noise"].includes(savedSettings.soundMode)
             ? savedSettings.soundMode
             : "off",
@@ -688,6 +694,7 @@ function renderSettings() {
     elements.themeSelect.value = state.settings.theme;
     elements.paperTintInput.value = normalizeColorValue(state.settings.paperTint);
     elements.paperTintValue.textContent = normalizeColorValue(state.settings.paperTint);
+    elements.shapeSelect.value = state.settings.backgroundShape;
     elements.soundModeSelect.value = state.settings.soundMode;
     elements.hintsToggle.checked = state.settings.showHints;
     elements.petAppearanceSelect.value = state.settings.petAppearance;
@@ -695,9 +702,9 @@ function renderSettings() {
 
 function renderFocusEnvironment() {
     const descriptor = getCurrentEnvironmentDescriptor();
-    elements.natureTrackList.innerHTML = renderTrackButtons("nature");
-    elements.noiseTrackList.innerHTML = renderTrackButtons("noise");
-    elements.handpanTrackList.innerHTML = renderTrackButtons("handpan");
+    elements.natureTrackList.innerHTML = renderTrackOptions("nature");
+    elements.noiseTrackList.innerHTML = renderTrackOptions("noise");
+    elements.handpanTrackList.innerHTML = renderTrackOptions("handpan");
     elements.activeEnvironmentLabel.textContent = descriptor.environmentLabel;
     elements.currentTrackLabel.textContent = descriptor.trackLabel;
     elements.environmentVolume.value = String(state.focusEnvironment.volume);
@@ -815,10 +822,10 @@ function renderPetLevelCards() {
     elements.petLevels.innerHTML = cardMarkup;
 }
 
-function renderTrackButtons(environmentKey) {
+function renderTrackOptions(environmentKey) {
     return (CONFIG.builtInEnvironmentTracks[environmentKey] || []).map((track) => {
         const isActive = state.focusEnvironment.selected === environmentKey && state.focusEnvironment.selectedTrackId === track.id;
-        return `<button class="track-pill wobble-md ${isActive ? "is-active" : ""}" data-environment="${environmentKey}" data-track-id="${track.id}">${track.label}</button>`;
+        return `<option value="${track.id}" ${isActive ? "selected" : ""}>${track.label}</option>`;
     }).join("");
 }
 
@@ -982,23 +989,6 @@ function getSelectedBuiltInTrack() {
     return tracks.find((track) => track.id === state.focusEnvironment.selectedTrackId) || tracks[0] || null;
 }
 
-function isLocalFileMode() {
-    return window.location.protocol === "file:";
-}
-
-function buildLocalYouTubeBlockedDescriptor(baseDescriptor) {
-    return {
-        ...baseDescriptor,
-        caption: "YouTube blocks embedded playback when Friction is opened as a local file. Open the app through localhost and the study box will work again.",
-        provider: "none",
-        shell: "empty",
-        embedUrl: "about:blank",
-        canPause: false,
-        canAdjustVolume: false,
-        emptyMessage: "YouTube media is blocked in local file mode. Open Friction through localhost to use videos and playlists here."
-    };
-}
-
 function getCurrentEnvironmentDescriptor() {
     if (state.focusEnvironment.selected === "custom") {
         const customLink = state.focusEnvironment.customLink.trim();
@@ -1047,10 +1037,6 @@ function getCurrentEnvironmentDescriptor() {
                 canPause: !isRadioStylePlaylist,
                 canAdjustVolume: true
             };
-
-            if (isLocalFileMode() && !isRadioStylePlaylist) {
-                return buildLocalYouTubeBlockedDescriptor(youtubeDescriptor);
-            }
 
             return youtubeDescriptor;
         }
@@ -1104,10 +1090,6 @@ function getCurrentEnvironmentDescriptor() {
         canAdjustVolume: Boolean(track)
     };
 
-    if (track && isLocalFileMode()) {
-        return buildLocalYouTubeBlockedDescriptor(builtInDescriptor);
-    }
-
     return builtInDescriptor;
 }
 
@@ -1156,12 +1138,19 @@ function showStorageWarning() {
 }
 
 function updateTheme(themeName) {
-    state.settings.theme = ["classic", "blueprint", "sunset"].includes(themeName) ? themeName : "classic";
+    state.settings.theme = ["classic", "blueprint", "sunset", "forest", "midnight", "citrus"].includes(themeName) ? themeName : "classic";
     saveAndRender();
 }
 
 function updatePaperTint(colorValue) {
     state.settings.paperTint = normalizeColorValue(colorValue);
+    saveAndRender();
+}
+
+function updateBackgroundShape(shapeName) {
+    state.settings.backgroundShape = ["doodles", "orbit", "confetti", "calm", "minimal"].includes(shapeName)
+        ? shapeName
+        : "doodles";
     saveAndRender();
 }
 
@@ -1184,12 +1173,18 @@ function updateSoundMode(soundMode) {
 }
 
 function handleTrackSelection(event) {
-    const target = event.target.closest("[data-track-id]");
-    if (!target) {
+    const environmentKey = event.target.id === "natureTrackList"
+        ? "nature"
+        : event.target.id === "noiseTrackList"
+            ? "noise"
+            : event.target.id === "handpanTrackList"
+                ? "handpan"
+                : "";
+    if (!environmentKey) {
         return;
     }
 
-    selectBuiltInTrack(target.dataset.environment, target.dataset.trackId);
+    selectBuiltInTrack(environmentKey, event.target.value);
 }
 
 function selectBuiltInTrack(environmentKey, trackId) {
@@ -1287,13 +1282,22 @@ function removeCustomMediaLink() {
 }
 
 function applyThemeSettings() {
-    document.body.classList.remove("theme-blueprint", "theme-sunset");
+    document.body.classList.remove("theme-blueprint", "theme-sunset", "theme-forest", "theme-midnight", "theme-citrus");
+    document.body.classList.remove("shapes-doodles", "shapes-orbit", "shapes-confetti", "shapes-calm", "shapes-minimal");
 
     if (state.settings.theme === "blueprint") {
         document.body.classList.add("theme-blueprint");
     } else if (state.settings.theme === "sunset") {
         document.body.classList.add("theme-sunset");
+    } else if (state.settings.theme === "forest") {
+        document.body.classList.add("theme-forest");
+    } else if (state.settings.theme === "midnight") {
+        document.body.classList.add("theme-midnight");
+    } else if (state.settings.theme === "citrus") {
+        document.body.classList.add("theme-citrus");
     }
+
+    document.body.classList.add(`shapes-${state.settings.backgroundShape}`);
 
     document.body.style.setProperty("--paper-custom", normalizeColorValue(state.settings.paperTint));
 }
@@ -1696,18 +1700,22 @@ function buildCustomEmbedUrl(rawUrl) {
     }
 
     const trimmed = rawUrl.trim();
+    const youtubeEmbedBase = "https://www.youtube-nocookie.com/embed";
 
     const youtubeMatch = extractYouTubeData(trimmed);
     if (youtubeMatch) {
+        const originParam = window.location.protocol === "file:"
+            ? ""
+            : `&origin=${encodeURIComponent(window.location.origin)}&widget_referrer=${encodeURIComponent(window.location.href)}`;
         if (youtubeMatch.type === "playlist") {
             if (youtubeMatch.videoId) {
-                return `https://www.youtube.com/embed/${youtubeMatch.videoId}?enablejsapi=1&controls=1&rel=0&loop=1&list=${youtubeMatch.value}&playlist=${youtubeMatch.videoId}`;
+                return `${youtubeEmbedBase}/${youtubeMatch.videoId}?enablejsapi=1&controls=1&rel=0&loop=1&list=${youtubeMatch.value}&playlist=${youtubeMatch.videoId}${originParam}`;
             }
-            return `https://www.youtube.com/embed/videoseries?list=${youtubeMatch.value}&enablejsapi=1&loop=1&controls=1&rel=0`;
+            return `${youtubeEmbedBase}/videoseries?list=${youtubeMatch.value}&enablejsapi=1&loop=1&controls=1&rel=0${originParam}`;
         }
 
         const playlistParam = youtubeMatch.playlist ? `&list=${youtubeMatch.playlist}` : "";
-        return `https://www.youtube.com/embed/${youtubeMatch.value}?enablejsapi=1&controls=1&rel=0&loop=1&playlist=${youtubeMatch.value}${playlistParam}`;
+        return `${youtubeEmbedBase}/${youtubeMatch.value}?enablejsapi=1&controls=1&rel=0&loop=1&playlist=${youtubeMatch.value}${playlistParam}${originParam}`;
     }
 
     const spotifyMatch = extractSpotifyData(trimmed);

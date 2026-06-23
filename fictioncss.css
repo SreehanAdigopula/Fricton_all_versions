@@ -14,6 +14,9 @@
     --wobble-lg: 30px 190px 25px 160px / 160px 25px 190px 30px;
     --wobble-md: 22px 140px 20px 120px / 120px 20px 140px 22px;
     --wobble-sm: 18px 95px 16px 78px / 88px 18px 100px 20px;
+    --shape-a: rgba(45, 93, 161, 0.16);
+    --shape-b: rgba(255, 77, 77, 0.14);
+    --shape-c: rgba(255, 249, 196, 0.24);
 }
 
 * {
@@ -30,9 +33,12 @@ body {
     color: var(--ink);
     background-color: var(--paper-custom);
     background-image:
+        radial-gradient(circle at 14% 12%, var(--shape-a), transparent 18%),
+        radial-gradient(circle at 84% 20%, var(--shape-b), transparent 16%),
+        radial-gradient(circle at 32% 78%, var(--shape-c), transparent 18%),
         radial-gradient(var(--muted) 1px, transparent 1px),
         linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0));
-    background-size: 24px 24px, auto;
+    background-size: auto, auto, auto, 24px 24px, auto;
     font-family: "Patrick Hand", "Comic Sans MS", cursive;
 }
 
@@ -65,12 +71,114 @@ body::after {
     opacity: 0.16;
 }
 
+body.shapes-minimal::before,
+body.shapes-minimal::after,
+body.shapes-minimal .app-shell::before,
+body.shapes-minimal .app-shell::after {
+    opacity: 0.06;
+}
+
 .app-shell {
     position: relative;
     z-index: 1;
     width: min(1120px, calc(100% - 1.5rem));
     margin: 0 auto;
     padding: 1.2rem 0 3rem;
+}
+
+.app-shell::before,
+.app-shell::after {
+    content: "";
+    position: fixed;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.3;
+}
+
+.app-shell::before {
+    top: 18%;
+    left: 1.5%;
+    width: 120px;
+    height: 120px;
+    border: 4px dotted var(--blue);
+    border-radius: 42% 58% 55% 45% / 51% 39% 61% 49%;
+    transform: rotate(-8deg);
+}
+
+.app-shell::after {
+    right: 2%;
+    bottom: 12%;
+    width: 150px;
+    height: 72px;
+    border: 4px dashed var(--accent);
+    border-radius: 999px;
+    transform: rotate(14deg);
+}
+
+body.shapes-orbit::before {
+    border-style: solid;
+    border-radius: 50%;
+    width: 170px;
+    height: 170px;
+    opacity: 0.16;
+}
+
+body.shapes-orbit::after {
+    border-style: solid;
+    border-radius: 50%;
+    width: 110px;
+    height: 110px;
+    opacity: 0.14;
+}
+
+body.shapes-orbit .app-shell::before {
+    border-style: dashed;
+    border-radius: 50%;
+    width: 130px;
+    height: 130px;
+}
+
+body.shapes-orbit .app-shell::after {
+    border-style: dashed;
+    border-radius: 50%;
+    width: 90px;
+    height: 90px;
+}
+
+body.shapes-confetti::before,
+body.shapes-confetti::after,
+body.shapes-confetti .app-shell::before,
+body.shapes-confetti .app-shell::after {
+    border-radius: 18px;
+    transform: rotate(18deg);
+}
+
+body.shapes-calm::before {
+    border-style: solid;
+    border-radius: 999px;
+    width: 180px;
+    height: 70px;
+}
+
+body.shapes-calm::after {
+    border-style: solid;
+    border-radius: 999px;
+    width: 150px;
+    height: 60px;
+}
+
+body.shapes-calm .app-shell::before {
+    border-style: solid;
+    border-radius: 999px;
+    width: 130px;
+    height: 54px;
+}
+
+body.shapes-calm .app-shell::after {
+    border-style: solid;
+    border-radius: 999px;
+    width: 120px;
+    height: 48px;
 }
 
 .wobble-xl {
@@ -784,6 +892,42 @@ body::after {
     gap: 0.9rem;
 }
 
+.section-dropdown {
+    margin-top: 0.8rem;
+    border: 3px solid var(--ink);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 3px 3px 0 0 rgba(45, 45, 45, 0.24);
+}
+
+.section-dropdown-toggle {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.9rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: "Kalam", cursive;
+    font-size: 1.35rem;
+}
+
+.section-dropdown-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.section-dropdown-toggle::after {
+    content: "+";
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.section-dropdown[open] .section-dropdown-toggle::after {
+    content: "-";
+}
+
+.section-dropdown-body {
+    padding: 0 1rem 1rem;
+}
+
 .track-group {
     padding: 0.9rem 1rem;
     border: 3px solid var(--ink);
@@ -804,6 +948,23 @@ body::after {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.7rem;
+}
+
+.track-select {
+    width: 100%;
+    border: 3px solid var(--ink);
+    background: var(--white);
+    color: var(--ink);
+    font: inherit;
+    padding: 0.8rem 0.9rem;
+    border-radius: var(--wobble-sm);
+    box-shadow: 3px 3px 0 0 rgba(45, 45, 45, 0.24);
+    cursor: pointer;
+}
+
+.track-select:focus {
+    outline: 3px solid rgba(45, 93, 161, 0.28);
+    outline-offset: 2px;
 }
 
 .track-pill {
@@ -1081,6 +1242,42 @@ body.theme-sunset {
     --accent: #ff6a3d;
     --blue: #8c3f91;
     --yellow: #ffe3b3;
+    --shape-a: rgba(255, 106, 61, 0.18);
+    --shape-b: rgba(140, 63, 145, 0.14);
+    --shape-c: rgba(255, 227, 179, 0.28);
+}
+
+body.theme-forest {
+    --paper-custom: #eef7ef;
+    --muted: #d5e6d1;
+    --accent: #3e7c59;
+    --blue: #1f4d3f;
+    --yellow: #e8f1c8;
+    --shape-a: rgba(62, 124, 89, 0.16);
+    --shape-b: rgba(31, 77, 63, 0.14);
+    --shape-c: rgba(232, 241, 200, 0.28);
+}
+
+body.theme-midnight {
+    --paper-custom: #edf1fb;
+    --muted: #cad7f1;
+    --accent: #4a63d8;
+    --blue: #1f2f6f;
+    --yellow: #dfe6ff;
+    --shape-a: rgba(74, 99, 216, 0.18);
+    --shape-b: rgba(31, 47, 111, 0.16);
+    --shape-c: rgba(223, 230, 255, 0.28);
+}
+
+body.theme-citrus {
+    --paper-custom: #fff8ea;
+    --muted: #f1e0b7;
+    --accent: #ff8a2b;
+    --blue: #2d7f6f;
+    --yellow: #fff0a8;
+    --shape-a: rgba(255, 138, 43, 0.18);
+    --shape-b: rgba(45, 127, 111, 0.16);
+    --shape-c: rgba(255, 240, 168, 0.28);
 }
 
 .pet-portrait[data-pet="dragon"] {
