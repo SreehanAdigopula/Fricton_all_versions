@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friction Focus Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="fictioncss.css">
+</head>
+<body class="login-page shapes-doodles">
+    <main class="auth-gate wobble-xl">
+        <div class="auth-copy">
+            <p class="scribble-label">Friction Login</p>
+            <div class="brand-lockup auth-brand">
+                <img class="brand-logo" src="friction-logo.svg" alt="Friction hourglass sprout logo">
+                <h1>Enter the focus lab.</h1>
+            </div>
+            <p class="auth-subtitle">Sign in to save your sessions, distractions, breaks, pet progress, and settings.</p>
+            <p class="auth-status wobble-md" id="authStatus">Sign in or create an account to get started.</p>
+            <div class="auth-feature-row" aria-label="Friction login features">
+                <span>Adaptive timer</span>
+                <span>Pet growth</span>
+                <span>Study media</span>
+            </div>
+        </div>
+
+        <form class="auth-card wobble-lg" id="authForm">
+            <span class="tape tape-top"></span>
+            <p class="auth-card-title">Save your desk</p>
+            <label class="setting-item wobble-md">
+                <span class="mini-label">Display Name</span>
+                <input id="authNameInput" class="sketch-input" type="text" placeholder="Your focus name">
+            </label>
+            <label class="setting-item wobble-md">
+                <span class="mini-label">Email</span>
+                <input id="authEmailInput" class="sketch-input" type="email" placeholder="you@example.com" autocomplete="email">
+            </label>
+            <label class="setting-item wobble-md">
+                <span class="mini-label">Password</span>
+                <input id="authPasswordInput" class="sketch-input" type="password" placeholder="At least 6 characters" autocomplete="current-password">
+            </label>
+            <div class="stack-actions three-up">
+                <button id="signInBtn" class="sketch-btn primary-btn" type="button">Sign In</button>
+                <button id="signUpBtn" class="sketch-btn secondary-btn" type="button">Create Account</button>
+                <button id="offlineModeBtn" class="sketch-btn ghost-btn" type="button">Offline Mode</button>
+            </div>
+        </form>
+    </main>
+
+    <footer class="site-footer auth-footer wobble-md">
+        <p>Before you focus, you can check the rules.</p>
+        <nav aria-label="Rules and policy links">
+            <a href="app-rules.html">App Rules</a>
+            <a href="policies.html">Policies</a>
+        </nav>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
+    <script src="loginJS.js"></script>
+</body>
+</html>

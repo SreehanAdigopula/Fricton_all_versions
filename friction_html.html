@@ -8,14 +8,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="fictioncss.css">
 </head>
 <body>
-    <main class="app-shell">
+    <main class="app-shell" id="appShell" hidden>
         <section class="hero-board wobble-xl pin-card">
             <div class="hero-copy">
                 <p class="scribble-label">Welcome Back</p>
-                <h1>Friction</h1>
+                <div class="brand-lockup">
+                    <img class="brand-logo" src="friction-logo.svg" alt="Friction hourglass sprout logo">
+                    <h1>Friction</h1>
+                </div>
                 <p class="hero-subtitle">Adaptive focus support for real work, real distractions, and real recovery.</p>
                 <p class="hero-text" id="heroPurpose">
                     A hand-drawn focus system that helps you track sessions, adapt your timer, and grow your pet as your consistency improves.
@@ -119,6 +123,12 @@
                     <strong class="card-highlight" id="homeMomentumSummary">0 clean wins</strong>
                     <p class="card-copy" id="homeMomentumDetail">Three clean sessions in a row still unlock extra time.</p>
                 </article>
+
+                <article class="board-card adaptive-card wobble-md rotate-left">
+                    <p class="scribble-label">Adaptive Coach</p>
+                    <strong class="card-highlight" id="adaptiveHomeSummary">Finding your rhythm</strong>
+                    <p class="card-copy" id="adaptiveHomeDetail">Complete a few sessions and Friction will tune the next block.</p>
+                </article>
             </div>
         </section>
 
@@ -154,6 +164,7 @@
                     <p class="scribble-label">Focus Session</p>
                     <div class="timer-stage wobble-xl">
                         <div class="timer-stage-inner wobble-xl">
+                            <p class="timer-date" id="currentDateTime">Loading current time...</p>
                             <p class="mini-label">Time Left</p>
                             <p id="timerDisplay">30:00</p>
                         </div>
@@ -190,6 +201,11 @@
                             <li>Too many breaks or distractions shortens the next one.</li>
                             <li>Weekly consistency helps your pet level up.</li>
                         </ul>
+                    </div>
+                    <div class="adaptive-coach-box wobble-md">
+                        <p class="mini-label">Adaptive Coach</p>
+                        <strong id="adaptiveFocusSummary">Next session: 30 minutes</strong>
+                        <p id="adaptiveFocusTip">Finish a few sessions so Friction can learn your rhythm.</p>
                     </div>
                 </article>
             </div>
@@ -259,6 +275,7 @@
                             <div class="custom-link-box wobble-md">
                                 <span class="mini-label">Paste YouTube or Spotify URL</span>
                                 <input id="customMediaInput" class="sketch-input" type="url" placeholder="https://youtube.com/... or https://open.spotify.com/...">
+                                <p class="spotify-playlist-note">Spotify playlists need to be yours for full playback. Other playlists may only load as previews.</p>
                                 <div class="stack-actions three-up">
                                     <button id="saveCustomLinkBtn" class="sketch-btn secondary-btn">Save Link</button>
                                     <button id="openCustomLinkBtn" class="sketch-btn primary-btn">Open Source</button>
@@ -386,6 +403,20 @@
 
             <div class="panel-grid panel-grid-settings">
                 <article class="board-card wobble-lg rotate-left">
+                    <p class="scribble-label">Account</p>
+                    <div class="settings-stack">
+                        <div class="setting-item wobble-md">
+                            <span class="mini-label">Signed In As</span>
+                            <strong id="authUserLabel">Offline Mode</strong>
+                            <p class="saved-link-meta" id="syncStatusLabel">Supabase sync is waiting for login.</p>
+                        </div>
+                        <button id="signOutBtn" class="sketch-btn danger-btn" type="button">Sign Out</button>
+                    </div>
+                </article>
+            </div>
+
+            <div class="panel-grid panel-grid-settings">
+                <article class="board-card wobble-lg rotate-left">
                     <p class="scribble-label">Pet Appearance</p>
                     <label class="setting-item wobble-md">
                         <span class="mini-label">Choose Your Buddy</span>
@@ -405,12 +436,22 @@
                 </article>
             </div>
         </section>
+
+        <footer class="site-footer wobble-md">
+            <p>Need the ground rules?</p>
+            <nav aria-label="Rules and policy links">
+                <a href="app-rules.html">App Rules</a>
+                <a href="policies.html">Policies</a>
+            </nav>
+        </footer>
     </main>
 
     <div class="storage-toast wobble-md" id="storageToast" hidden>
         Progress is running in temporary mode because local saving is blocked in this browser tab.
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
     <script src="frictionJS.js"></script>
 </body>
 </html>

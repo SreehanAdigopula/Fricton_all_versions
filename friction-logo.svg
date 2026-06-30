@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Friction hourglass sprout logo</title>
+  <desc id="desc">A sketchy hourglass with blue sand and a green sprout growing from the top.</desc>
+  <rect width="128" height="128" rx="28" fill="#fff9c4"/>
+  <path d="M31 18 C47 24 82 24 97 18" fill="none" stroke="#2d2d2d" stroke-width="7" stroke-linecap="round"/>
+  <path d="M35 110 C50 104 78 104 94 110" fill="none" stroke="#2d2d2d" stroke-width="7" stroke-linecap="round"/>
+  <path d="M38 26 C45 43 55 53 64 62 C75 74 88 86 94 102" fill="none" stroke="#2d2d2d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M90 26 C83 43 73 53 64 62 C53 74 40 86 34 102" fill="none" stroke="#2d2d2d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 40 C58 48 70 48 80 40 C75 52 69 58 64 62 C58 57 52 52 48 40Z" fill="#73b7ff" stroke="#2d2d2d" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M48 91 C57 80 71 80 80 91 C73 96 55 96 48 91Z" fill="#73b7ff" stroke="#2d2d2d" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M64 31 C64 21 64 16 64 10" fill="none" stroke="#2f9e54" stroke-width="5" stroke-linecap="round"/>
+  <path d="M64 14 C51 9 44 13 39 24 C51 25 59 22 64 14Z" fill="#7bd88f" stroke="#2d2d2d" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M65 14 C76 6 87 10 91 22 C79 24 70 21 65 14Z" fill="#a8e66f" stroke="#2d2d2d" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M56 67 C62 72 66 77 70 84" fill="none" stroke="#2d5da1" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 8"/>
+</svg>

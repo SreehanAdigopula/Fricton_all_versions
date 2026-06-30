@@ -1,4 +1,5 @@
 const STORAGE_KEY = "friction-v1-state";
+const OFFLINE_MODE_STORAGE_KEY = "friction-offline-mode";
 
 const CONFIG = {
     defaultSessionMinutes: 30,
@@ -9,8 +10,13 @@ const CONFIG = {
     cleanStreakRewardThreshold: 3,
     cleanStreakRewardMinutes: 5,
     cleanStreakRewardSessions: 2,
+    adaptiveStepMinutes: 5,
+    adaptiveMaxMinutes: 60,
+    adaptiveRecentEventLimit: 12,
     petRewardSessionStep: 5,
     petRewardMaxAverageDistractions: 1,
+    petSadDistractionThreshold: 9,
+    petSadFailureThreshold: 4,
     environmentOptions: ["nature", "noise", "handpan", "custom"],
     builtInEnvironmentTracks: {
         nature: [
@@ -78,6 +84,17 @@ const defaultState = {
     weeklyCompleted: 0,
     weeklyDistractionTotal: 0,
     weeklySessionCount: 0,
+    totalCompletedSessions: 0,
+    totalFailedSessions: 0,
+    totalDistractionCount: 0,
+    totalBreakCount: 0,
+    adaptiveProfile: {
+        recentEvents: [],
+        recommendedMinutes: CONFIG.defaultSessionMinutes,
+        focusStyle: "Learning Mode",
+        lastReason: "Friction is waiting for a few sessions before it adapts.",
+        lastTip: "Finish a few sessions so Friction can learn your rhythm."
+    },
     petLevel: 1,
     nextPetRewardThreshold: CONFIG.petRewardSessionStep,
     cleanStreakBonusSessionsLeft: 0,
@@ -156,13 +173,22 @@ const elements = {
     homePetDetail: document.getElementById("homePetDetail"),
     homeMomentumSummary: document.getElementById("homeMomentumSummary"),
     homeMomentumDetail: document.getElementById("homeMomentumDetail"),
+    adaptiveHomeSummary: document.getElementById("adaptiveHomeSummary"),
+    adaptiveHomeDetail: document.getElementById("adaptiveHomeDetail"),
+    adaptiveFocusSummary: document.getElementById("adaptiveFocusSummary"),
+    adaptiveFocusTip: document.getElementById("adaptiveFocusTip"),
     themeSelect: document.getElementById("themeSelect"),
     paperTintInput: document.getElementById("paperTintInput"),
     paperTintValue: document.getElementById("paperTintValue"),
     shapeSelect: document.getElementById("shapeSelect"),
     soundModeSelect: document.getElementById("soundModeSelect"),
     hintsToggle: document.getElementById("hintsToggle"),
-    petAppearanceSelect: document.getElementById("petAppearanceSelect")
+    petAppearanceSelect: document.getElementById("petAppearanceSelect"),
+    appShell: document.getElementById("appShell"),
+    signOutBtn: document.getElementById("signOutBtn"),
+    authUserLabel: document.getElementById("authUserLabel"),
+    syncStatusLabel: document.getElementById("syncStatusLabel"),
+    currentDateTime: document.getElementById("currentDateTime")
 };
 
 let canUseStorage = detectStorageAvailability();
@@ -173,6 +199,12 @@ let activeSoundNodes = [];
 let environmentSoundNodes = [];
 let lastFocusEmbedUrl = "";
 let activeGeneratedTrackId = "";
+let supabaseClient = null;
+let currentUser = null;
+let isOfflineMode = false;
+let serverTimeOffsetMs = 0;
+let clockTimer = null;
+let syncTimer = null;
 
 bindEvents();
 elements.petSketch.className = "pet-sketch";
@@ -186,6 +218,8 @@ if (state.settings.soundMode !== "off") {
     syncSoundMode();
 }
 syncFocusEnvironment();
+initializeClock();
+initializeSupabaseAuth();
 
 function bindEvents() {
     elements.appTabs.forEach((tabButton) => {
@@ -225,6 +259,7 @@ function bindEvents() {
     elements.saveCustomLinkBtn.addEventListener("click", saveCustomMediaLink);
     elements.openCustomLinkBtn.addEventListener("click", openCustomMediaLink);
     elements.removeCustomLinkBtn.addEventListener("click", removeCustomMediaLink);
+    elements.signOutBtn.addEventListener("click", signOutUser);
 }
 
 function setActiveTab(tabName) {
@@ -265,6 +300,11 @@ function sanitizeState(savedState) {
         weeklyCompleted: toPositiveNumber(savedState.weeklyCompleted, 0),
         weeklyDistractionTotal: toPositiveNumber(savedState.weeklyDistractionTotal, 0),
         weeklySessionCount: toPositiveNumber(savedState.weeklySessionCount, 0),
+        totalCompletedSessions: toPositiveNumber(savedState.totalCompletedSessions, savedState.weeklyCompleted || 0),
+        totalFailedSessions: toPositiveNumber(savedState.totalFailedSessions, 0),
+        totalDistractionCount: toPositiveNumber(savedState.totalDistractionCount, savedState.weeklyDistractionTotal || 0),
+        totalBreakCount: toPositiveNumber(savedState.totalBreakCount, 0),
+        adaptiveProfile: sanitizeAdaptiveProfile(savedState.adaptiveProfile),
         petLevel: Math.max(1, toPositiveNumber(savedState.petLevel, 1)),
         nextPetRewardThreshold: Math.max(CONFIG.petRewardSessionStep, toPositiveNumber(savedState.nextPetRewardThreshold, CONFIG.petRewardSessionStep)),
         cleanStreakBonusSessionsLeft: toPositiveNumber(savedState.cleanStreakBonusSessionsLeft, 0),
@@ -321,6 +361,26 @@ function sanitizeFocusEnvironment(savedEnvironment = {}) {
     };
 }
 
+function sanitizeAdaptiveProfile(savedProfile = {}) {
+    const recentEvents = Array.isArray(savedProfile.recentEvents)
+        ? savedProfile.recentEvents
+            .filter((event) => event && typeof event.type === "string")
+            .slice(-CONFIG.adaptiveRecentEventLimit)
+        : [];
+
+    return {
+        recentEvents,
+        recommendedMinutes: clampSessionMinutes(toPositiveNumber(savedProfile.recommendedMinutes, CONFIG.defaultSessionMinutes)),
+        focusStyle: typeof savedProfile.focusStyle === "string" ? savedProfile.focusStyle : "Learning Mode",
+        lastReason: typeof savedProfile.lastReason === "string"
+            ? savedProfile.lastReason
+            : "Friction is waiting for a few sessions before it adapts.",
+        lastTip: typeof savedProfile.lastTip === "string"
+            ? savedProfile.lastTip
+            : "Finish a few sessions so Friction can learn your rhythm."
+    };
+}
+
 function normalizeEnvironmentKey(value) {
     if (["rain", "forest", "ocean", "nature"].includes(value)) {
         return "nature";
@@ -344,6 +404,13 @@ function normalizeSessionState(value) {
 function toPositiveNumber(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function clampSessionMinutes(value) {
+    return Math.min(
+        CONFIG.adaptiveMaxMinutes,
+        Math.max(CONFIG.minimumSessionMinutes, Math.round(value))
+    );
 }
 
 function persistState() {
@@ -376,7 +443,10 @@ function startSession() {
     state.timerEndsAt = state.timerStartedAt + (state.timeLeft * 1000);
 
     startTimer();
-    updateOutput("Session started. Keep your head down and ride the messy momentum.");
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+    updateOutput(`Session started. ${state.adaptiveProfile.lastTip}`);
     saveAndRender();
 }
 
@@ -395,6 +465,7 @@ function startTimer() {
             stopTimer();
             state.sessionState = "awaiting-result";
             updateOutput("Time is up. Mark how the session went.");
+            sendTimerNotification();
             saveAndRender();
             return;
         }
@@ -436,21 +507,27 @@ function completeSession() {
         return;
     }
 
+    const sessionSnapshot = getSessionSnapshot("completed");
     finalizeSessionBase();
     state.weeklyCompleted += 1;
+    state.totalCompletedSessions += 1;
     state.successStreak += 1;
     state.failStreak = 0;
+
+    let sessionMessage = "Session completed. Nice work.";
 
     if (state.currentDistractionCount === 0 && state.successStreak >= CONFIG.cleanStreakRewardThreshold) {
         state.cleanStreakBonusSessionsLeft = CONFIG.cleanStreakRewardSessions;
         state.sessionDuration += CONFIG.cleanStreakRewardMinutes;
-        updateOutput("Three clean sessions in a row. Your next sessions just got longer.");
-    } else {
-        updateOutput("Session completed. Nice work.");
+        sessionMessage = "Three clean sessions in a row. Your next sessions just got longer.";
     }
 
     applyBonusCountdown();
-    checkWeeklyReward();
+    const petMessage = checkWeeklyReward();
+    recordAdaptiveEvent("completed");
+    const adaptiveMessage = applyAdaptiveSessionPlan();
+    updateOutput(`${petMessage || sessionMessage} ${adaptiveMessage}`);
+    recordSupabaseSession(sessionSnapshot);
     saveAndRender();
 }
 
@@ -462,13 +539,16 @@ function markDistracted() {
     }
 
     state.currentDistractionCount += 1;
+    state.totalDistractionCount += 1;
+    recordAdaptiveEvent("distraction");
+    updateAdaptiveProfile();
 
     if (state.currentDistractionCount >= CONFIG.distractionLimit) {
         state.sessionDuration = CONFIG.minimumSessionMinutes;
         state.successStreak = 0;
-        updateOutput("Too many distractions. The next session resets to 10 minutes.");
+        updateOutput(`Too many distractions. The next session resets to 10 minutes. ${state.adaptiveProfile.lastTip}`);
     } else {
-        updateOutput(`Distraction recorded. ${state.currentDistractionCount} of ${CONFIG.distractionLimit} this session.`);
+        updateOutput(`Distraction recorded. ${state.currentDistractionCount} of ${CONFIG.distractionLimit} this session. ${state.adaptiveProfile.lastTip}`);
     }
 
     saveAndRender();
@@ -482,13 +562,16 @@ function takeBreak() {
     }
 
     state.currentBreakCount += 1;
+    state.totalBreakCount += 1;
+    recordAdaptiveEvent("break");
+    updateAdaptiveProfile();
 
     if (state.currentBreakCount >= CONFIG.breakLimit) {
         state.sessionDuration = Math.max(CONFIG.minimumSessionMinutes, state.sessionDuration - 5);
         state.successStreak = 0;
-        updateOutput("Too many breaks. The next session is shorter.");
+        updateOutput(`Too many breaks. The next session is shorter. ${state.adaptiveProfile.lastTip}`);
     } else {
-        updateOutput(`Break recorded. ${state.currentBreakCount} of ${CONFIG.breakLimit} this session.`);
+        updateOutput(`Break recorded. ${state.currentBreakCount} of ${CONFIG.breakLimit} this session. ${state.adaptiveProfile.lastTip}`);
     }
 
     saveAndRender();
@@ -499,18 +582,24 @@ function failSession() {
         return;
     }
 
+    const sessionSnapshot = getSessionSnapshot("failed");
     finalizeSessionBase();
+    state.totalFailedSessions += 1;
     state.failStreak += 1;
     state.successStreak = 0;
 
+    let sessionMessage = "Session failed. Shake it off and try again.";
+
     if (state.failStreak >= CONFIG.failStreakPenaltyThreshold) {
         state.sessionDuration = Math.max(CONFIG.minimumSessionMinutes, state.sessionDuration - 5);
-        updateOutput("Two failed sessions in a row. Your next session is shorter.");
-    } else {
-        updateOutput("Session failed. Shake it off and try again.");
+        sessionMessage = "Two failed sessions in a row. Your next session is shorter.";
     }
 
     applyBonusCountdown();
+    recordAdaptiveEvent("failed");
+    const adaptiveMessage = applyAdaptiveSessionPlan();
+    updateOutput(`${sessionMessage} ${adaptiveMessage}`);
+    recordSupabaseSession(sessionSnapshot);
     saveAndRender();
 }
 
@@ -556,11 +645,16 @@ function checkWeeklyReward() {
     ) {
         state.petLevel += 1;
         state.nextPetRewardThreshold += CONFIG.petRewardSessionStep;
-        updateOutput(`Great week. Your pet grew to Level ${state.petLevel}.`);
+        return `Great week. Your pet grew to Level ${state.petLevel}.`;
     }
+
+    return "";
 }
 
 function resetWeek() {
+    if (!window.confirm("Reset all weekly stats? This can't be undone.")) {
+        return;
+    }
     stopTimer();
     state = {
         ...state,
@@ -590,6 +684,122 @@ function getWeeklyAverage() {
     return state.weeklyDistractionTotal / state.weeklySessionCount;
 }
 
+function recordAdaptiveEvent(type) {
+    const event = {
+        type,
+        distractions: state.currentDistractionCount,
+        breaks: state.currentBreakCount,
+        sessionMinutes: state.sessionDuration,
+        at: Date.now()
+    };
+
+    state.adaptiveProfile.recentEvents = [
+        ...(state.adaptiveProfile.recentEvents || []),
+        event
+    ].slice(-CONFIG.adaptiveRecentEventLimit);
+}
+
+function updateAdaptiveProfile() {
+    const insight = getAdaptiveInsight();
+    state.adaptiveProfile.recommendedMinutes = insight.recommendedMinutes;
+    state.adaptiveProfile.focusStyle = insight.focusStyle;
+    state.adaptiveProfile.lastReason = insight.reason;
+    state.adaptiveProfile.lastTip = insight.tip;
+    return insight;
+}
+
+function applyAdaptiveSessionPlan() {
+    const insight = updateAdaptiveProfile();
+    const previousMinutes = state.sessionDuration;
+
+    if (state.sessionState !== "running") {
+        state.sessionDuration = insight.recommendedMinutes;
+        state.timeLeft = state.sessionDuration * 60;
+    }
+
+    if (insight.recommendedMinutes > previousMinutes) {
+        return `Adaptive Coach bumped the next session to ${insight.recommendedMinutes} minutes because ${insight.reason.toLowerCase()}`;
+    }
+
+    if (insight.recommendedMinutes < previousMinutes) {
+        return `Adaptive Coach eased the next session to ${insight.recommendedMinutes} minutes because ${insight.reason.toLowerCase()}`;
+    }
+
+    return `Adaptive Coach kept the next session at ${insight.recommendedMinutes} minutes because ${insight.reason.toLowerCase()}`;
+}
+
+function getAdaptiveInsight() {
+    const recentEvents = state.adaptiveProfile.recentEvents || [];
+    const recentCounts = countRecentAdaptiveEvents(recentEvents);
+    const totalSessions = state.totalCompletedSessions + state.totalFailedSessions;
+    const completionRate = totalSessions > 0 ? state.totalCompletedSessions / totalSessions : 0;
+    const averageDistractions = totalSessions > 0 ? state.totalDistractionCount / totalSessions : 0;
+    const averageBreaks = totalSessions > 0 ? state.totalBreakCount / totalSessions : 0;
+    let recommendedMinutes = state.sessionDuration;
+    let focusStyle = "Learning Mode";
+    let reason = "Friction is waiting for a few sessions before it adapts.";
+    let tip = "Finish a few sessions so Friction can learn your rhythm.";
+
+    if (totalSessions === 0 && recentEvents.length === 0) {
+        return {
+            recommendedMinutes: clampSessionMinutes(recommendedMinutes),
+            focusStyle,
+            reason,
+            tip
+        };
+    }
+
+    if (state.failStreak >= 2 || recentCounts.failed >= 2) {
+        recommendedMinutes -= CONFIG.adaptiveStepMinutes;
+        focusStyle = "Recovery Mode";
+        reason = "failed sessions are stacking up";
+        tip = "Try a shorter block, write one tiny goal before starting, and stop after the first real win.";
+    } else if (recentCounts.distraction >= 4 || averageDistractions >= 2) {
+        recommendedMinutes -= CONFIG.adaptiveStepMinutes;
+        focusStyle = "Distraction Reset";
+        reason = "distraction clicks are trending high";
+        tip = "Before the next session, move one tempting tab/app away and pick a single task sentence.";
+    } else if (recentCounts.break >= 4 || averageBreaks >= 2) {
+        recommendedMinutes -= CONFIG.adaptiveStepMinutes;
+        focusStyle = "Energy Saver";
+        reason = "break clicks are showing lower energy";
+        tip = "Use a lighter session and plan one real break after the timer instead of breaking mid-flow.";
+    } else if (state.successStreak >= 3 && completionRate >= 0.7 && averageDistractions <= 1) {
+        recommendedMinutes += CONFIG.adaptiveStepMinutes;
+        focusStyle = "Deep Work Stretch";
+        reason = "your completion streak is strong and distractions are low";
+        tip = "You can handle a longer block. Keep the same environment and protect the first five minutes.";
+    } else if (completionRate >= 0.6) {
+        focusStyle = "Steady Builder";
+        reason = "your completions are outweighing rough sessions";
+        tip = "Stay at this length and aim for one less distraction click than last time.";
+    } else {
+        recommendedMinutes -= CONFIG.adaptiveStepMinutes;
+        focusStyle = "Gentle Restart";
+        reason = "the app sees mixed results and is reducing pressure";
+        tip = "Make the next block easier: smaller goal, fewer tabs, and a visible finish line.";
+    }
+
+    return {
+        recommendedMinutes: clampSessionMinutes(recommendedMinutes),
+        focusStyle,
+        reason,
+        tip
+    };
+}
+
+function countRecentAdaptiveEvents(recentEvents) {
+    return recentEvents.reduce((counts, event) => {
+        counts[event.type] = (counts[event.type] || 0) + 1;
+        return counts;
+    }, {
+        completed: 0,
+        failed: 0,
+        distraction: 0,
+        break: 0
+    });
+}
+
 function render() {
     renderTabs();
     applyThemeSettings();
@@ -597,6 +807,7 @@ function render() {
     renderTimer();
     renderPet();
     renderHomeHighlights();
+    renderAdaptiveCoach();
     renderSessionControls();
     renderSettings();
     renderFocusEnvironment();
@@ -647,26 +858,42 @@ function renderTimer() {
 
     const minutes = Math.floor(displaySeconds / 60);
     const seconds = String(displaySeconds % 60).padStart(2, "0");
-    elements.timerDisplay.textContent = `${minutes}:${seconds}`;
+    const timeString = `${minutes}:${seconds}`;
+    elements.timerDisplay.textContent = timeString;
+
+    if (state.sessionState === "running") {
+        document.title = `${timeString} — Friction`;
+    } else if (state.sessionState === "awaiting-result") {
+        document.title = "⏰ Time's up — Friction";
+    } else {
+        document.title = "Friction: Adaptor";
+    }
 }
 
 function renderPet() {
     const petForm = getCurrentPetForm();
     const petAppearance = getPetAppearance();
     const currentStage = getPetStageFromLevel(state.petLevel);
+    const petMood = getPetMood();
+    const petSketch = getPetSketchMarkup(state.settings.petAppearance, currentStage.key, petMood.key);
     elements.petAvatar.innerHTML = `
-        <div class="pet-stamp-art">${getPetSketchMarkup(state.settings.petAppearance, currentStage.key)}</div>
+        <div class="pet-stamp-art">${petSketch}</div>
         <div class="pet-stamp-copy">
             <strong>${petAppearance.emoji}</strong>
-            <span>Lv ${state.petLevel}</span>
+            <span>Lv ${state.petLevel}${petMood.isSad ? " · sad" : ""}</span>
         </div>
     `;
+    elements.petAvatar.dataset.mood = petMood.key;
     elements.petInfo.textContent = String(state.petLevel);
-    elements.petLevelDisplay.textContent = `${petAppearance.emoji} ${currentStage.label} Level ${state.petLevel}`;
+    const petMoodLabel = petMood.isSad ? `${petMood.label} ` : "";
+    elements.petLevelDisplay.textContent = `${petMoodLabel}${petAppearance.emoji} ${currentStage.label} Level ${state.petLevel}`;
     elements.petGoal.textContent = `${state.nextPetRewardThreshold} sessions`;
-    elements.petSummary.textContent = `${petAppearance.emoji}: ${petAppearance.summary} Current stage: ${currentStage.label}. ${petForm.name} form unlock energy comes from ${state.nextPetRewardThreshold} completed sessions with low distractions.`;
+    elements.petSummary.textContent = petMood.isSad
+        ? `${petAppearance.emoji}: ${petMood.reason}. It shrank into a smaller sketch form, but ${petForm.name} can still grow from ${state.nextPetRewardThreshold} completed sessions with low distractions.`
+        : `${petAppearance.emoji}: ${petAppearance.summary} Current stage: ${currentStage.label}. ${petForm.name} form unlock energy comes from ${state.nextPetRewardThreshold} completed sessions with low distractions. A small sad version appears after 9 distractions or 4 failed sessions.`;
     elements.petPortrait.dataset.pet = state.settings.petAppearance;
-    elements.petSketch.innerHTML = getPetSketchMarkup(state.settings.petAppearance, currentStage.key);
+    elements.petPortrait.dataset.mood = petMood.key;
+    elements.petSketch.innerHTML = petSketch;
     renderPetLevelCards();
 }
 
@@ -674,6 +901,7 @@ function renderHomeHighlights() {
     const descriptor = getCurrentEnvironmentDescriptor();
     const petAppearance = getPetAppearance();
     const stage = getPetStageFromLevel(state.petLevel);
+    const petMood = getPetMood();
     const cleanWins = Math.max(state.successStreak, 0);
     const sessionsRemaining = Math.max(state.nextPetRewardThreshold - state.weeklyCompleted, 0);
     const environmentDetail = descriptor.embedUrl === "about:blank"
@@ -682,12 +910,22 @@ function renderHomeHighlights() {
 
     elements.homeEnvironmentSummary.textContent = descriptor.trackLabel;
     elements.homeEnvironmentDetail.textContent = environmentDetail;
-    elements.homePetSummary.textContent = `${petAppearance.emoji} ${stage.label} · Lv ${state.petLevel}`;
-    elements.homePetDetail.textContent = `${sessionsRemaining} more completed session${sessionsRemaining === 1 ? "" : "s"} until your next pet growth target.`;
+    elements.homePetSummary.textContent = `${petAppearance.emoji} ${stage.label} · Lv ${state.petLevel}${petMood.isSad ? " · small/sad" : ""}`;
+    elements.homePetDetail.textContent = petMood.isSad
+        ? `${petMood.reason}. Keep the next sessions cleaner to protect future growth.`
+        : `${sessionsRemaining} more completed session${sessionsRemaining === 1 ? "" : "s"} until your next pet growth target.`;
     elements.homeMomentumSummary.textContent = `${cleanWins} clean win${cleanWins === 1 ? "" : "s"}`;
     elements.homeMomentumDetail.textContent = cleanWins >= CONFIG.cleanStreakRewardThreshold
         ? "You already earned a longer focus block. Keep the streak calm."
         : `${Math.max(CONFIG.cleanStreakRewardThreshold - cleanWins, 0)} clean session${CONFIG.cleanStreakRewardThreshold - cleanWins === 1 ? "" : "s"} left to unlock bonus time.`;
+}
+
+function renderAdaptiveCoach() {
+    const profile = state.adaptiveProfile;
+    elements.adaptiveHomeSummary.textContent = `${profile.focusStyle} · ${profile.recommendedMinutes} min next`;
+    elements.adaptiveHomeDetail.textContent = `${profile.lastReason} ${profile.lastTip}`;
+    elements.adaptiveFocusSummary.textContent = `Next session: ${profile.recommendedMinutes} minutes`;
+    elements.adaptiveFocusTip.textContent = `${profile.focusStyle}: ${profile.lastTip}`;
 }
 
 function renderSettings() {
@@ -788,6 +1026,31 @@ function getPetAppearance() {
     return CONFIG.petAppearances[state.settings.petAppearance] || CONFIG.petAppearances.dragon;
 }
 
+function getPetMood() {
+    const distractionTrigger = state.totalDistractionCount >= CONFIG.petSadDistractionThreshold;
+    const failureTrigger = state.totalFailedSessions >= CONFIG.petSadFailureThreshold;
+
+    if (!distractionTrigger && !failureTrigger) {
+        return {
+            key: "steady",
+            label: "",
+            isSad: false,
+            reason: ""
+        };
+    }
+
+    const reason = failureTrigger
+        ? `Four failed sessions made your pet feel wobbly`
+        : `Nine distractions filled the distraction bar three times`;
+
+    return {
+        key: "sad",
+        label: "Small sad",
+        isSad: true,
+        reason
+    };
+}
+
 function getPetStageFromLevel(levelNumber) {
     if (levelNumber <= 1) {
         return { key: "baby", label: "Baby" };
@@ -802,6 +1065,8 @@ function getPetStageFromLevel(levelNumber) {
 
 function renderPetLevelCards() {
     const petAppearance = getPetAppearance();
+    const petMood = getPetMood();
+    const currentStage = getPetStageFromLevel(state.petLevel);
     const cardMarkup = [
         { key: "baby", label: "Level 1", title: `Baby ${petAppearance.emoji}`, body: "The first tiny version of your focus buddy. It appears when the habit is just getting started." },
         { key: "teen", label: "Level 2", title: `Teen ${petAppearance.emoji}`, body: "A scrappier middle stage that shows your rhythm is getting more reliable." },
@@ -819,7 +1084,24 @@ function renderPetLevelCards() {
         </article>
     `).join("");
 
-    elements.petLevels.innerHTML = cardMarkup;
+    const sadDistractionsLeft = Math.max(CONFIG.petSadDistractionThreshold - state.totalDistractionCount, 0);
+    const sadFailuresLeft = Math.max(CONFIG.petSadFailureThreshold - state.totalFailedSessions, 0);
+    const moodCardMarkup = `
+        <article class="level-card stress-form-card ${petMood.isSad ? "is-current" : "is-locked"} wobble-md">
+            <div class="level-card-head">
+                <div class="level-sketch">${getPetSketchMarkup(state.settings.petAppearance, currentStage.key, "sad")}</div>
+                <div>
+                    <span class="mini-label">${petMood.isSad ? "Stress Form Active" : "Stress Form"}</span>
+                    <strong>Small Sad ${petAppearance.emoji}</strong>
+                </div>
+            </div>
+            <p>${petMood.isSad
+                ? `${petMood.reason}. This smaller sketch version stays visible so you know the pet needs gentler sessions.`
+                : `Every pet has a small sad sketch form. It unlocks after ${sadDistractionsLeft} more distraction${sadDistractionsLeft === 1 ? "" : "s"} or ${sadFailuresLeft} more failed session${sadFailuresLeft === 1 ? "" : "s"}.`}</p>
+        </article>
+    `;
+
+    elements.petLevels.innerHTML = `${cardMarkup}${moodCardMarkup}`;
 }
 
 function renderTrackOptions(environmentKey) {
@@ -829,7 +1111,7 @@ function renderTrackOptions(environmentKey) {
     }).join("");
 }
 
-function getPetSketchMarkup(petKey, stage = "baby") {
+function getPetSketchMarkup(petKey, stage = "baby", mood = "steady") {
     const sketches = {
         dragon: `
             <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -962,7 +1244,27 @@ function getPetSketchMarkup(petKey, stage = "baby") {
             </svg>`
     };
 
-    return sketches[petKey] || sketches.dragon;
+    const sketchMarkup = sketches[petKey] || sketches.dragon;
+    return mood === "sad" ? getSadPetSketchMarkup(sketchMarkup) : sketchMarkup;
+}
+
+function getSadPetSketchMarkup(sketchMarkup) {
+    const petLines = sketchMarkup
+        .replace(/^\s*<svg[^>]*>/, "")
+        .replace(/<\/svg>\s*$/, "");
+
+    return `
+        <svg class="pet-sketch-sad" viewBox="0 0 200 200" aria-hidden="true">
+            <g class="pet-sketch-small" transform="translate(22 26) scale(0.78)">
+                ${petLines}
+                <path class="pet-sad-detail" d="M78 100 Q88 92 98 100" />
+                <path class="pet-sad-detail" d="M108 100 Q118 92 128 100" />
+                <path class="pet-sad-detail" d="M88 142 C98 132, 112 132, 122 142" />
+                <path class="pet-sad-detail" d="M132 116 C140 126, 130 136, 124 128 C122 124, 126 119, 132 116Z" />
+                <path class="pet-sad-detail" d="M70 166 C88 174, 120 174, 138 166" />
+            </g>
+            <path class="pet-sad-shadow" d="M62 170 C88 184, 132 184, 158 170" />
+        </svg>`;
 }
 
 function getEnvironmentLabel(environmentKey) {
@@ -1048,7 +1350,7 @@ function getCurrentEnvironmentDescriptor() {
                 environmentLabel: "Custom Link",
                 trackLabel: spotifyLabel,
                 title: spotifyLabel,
-                caption: "Spotify is embedded in a playlist-style holder, but full playback can still depend on Spotify sign-in and Spotify's own preview rules.",
+                caption: "Spotify is embedded in a playlist-style holder. Use your own playlist for full playback; otherwise Spotify may only give a preview.",
                 typeLabel: "Spotify embed",
                 selectedTypeLabel: "Spotify embed",
                 provider: "spotify",
@@ -1119,6 +1421,7 @@ function updateOutput(message) {
 function saveAndRender() {
     persistState();
     render();
+    scheduleSupabaseSync();
 }
 
 function detectStorageAvailability() {
@@ -1135,6 +1438,259 @@ function detectStorageAvailability() {
 
 function showStorageWarning() {
     elements.storageToast.hidden = false;
+}
+
+function getSavedSupabaseConfig() {
+    const fileConfig = window.FRICTION_SUPABASE_CONFIG || {};
+    return {
+        url: fileConfig.url || "",
+        anonKey: fileConfig.anonKey || ""
+    };
+}
+
+function hasSupabaseConfig() {
+    const config = getSavedSupabaseConfig();
+    return Boolean(config.url && config.anonKey);
+}
+
+async function initializeSupabaseAuth() {
+    const config = getSavedSupabaseConfig();
+    isOfflineMode = canUseStorage && window.localStorage.getItem(OFFLINE_MODE_STORAGE_KEY) === "1";
+
+    if (isOfflineMode) {
+        updateAuthView();
+        render();
+        return;
+    }
+
+    if (!hasSupabaseConfig()) {
+        updateAuthView();
+        elements.syncStatusLabel.textContent = "Friction's login database is not available right now. Offline Mode still works.";
+        return;
+    }
+
+    if (!window.supabase?.createClient) {
+        updateAuthView();
+        elements.syncStatusLabel.textContent = "The login system did not load. Check your connection and sign in again.";
+        return;
+    }
+
+    supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+        updateAuthView();
+        elements.syncStatusLabel.textContent = error.message;
+        return;
+    }
+
+    currentUser = data.session?.user || null;
+    if (!currentUser) {
+        redirectToLogin();
+        return;
+    }
+
+    if (currentUser) {
+        await loadSupabaseState();
+        await syncSupabaseState();
+    }
+
+    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+        currentUser = session?.user || null;
+        if (currentUser) {
+            isOfflineMode = false;
+            await loadSupabaseState();
+            await syncSupabaseState();
+        } else if (!isOfflineMode) {
+            redirectToLogin();
+            return;
+        }
+        updateAuthView();
+        render();
+    });
+
+    updateAuthView();
+    render();
+}
+
+function updateAuthView() {
+    const isUnlocked = Boolean(currentUser || isOfflineMode);
+    elements.appShell.hidden = !isUnlocked;
+    elements.signOutBtn.disabled = !currentUser;
+    elements.authUserLabel.textContent = currentUser?.email || (isOfflineMode ? "Offline Mode" : "Not signed in");
+    elements.syncStatusLabel.textContent = currentUser
+        ? "Supabase sync is active for this account."
+        : "Supabase sync is waiting for login.";
+}
+
+async function signOutUser() {
+    if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+    }
+
+    currentUser = null;
+    isOfflineMode = false;
+    if (canUseStorage) {
+        window.localStorage.removeItem(OFFLINE_MODE_STORAGE_KEY);
+    }
+    redirectToLogin();
+}
+
+function redirectToLogin() {
+    window.location.href = "login.html";
+}
+
+async function loadSupabaseState() {
+    if (!supabaseClient || !currentUser) {
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from("user_app_stats")
+        .select("app_state")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+        elements.syncStatusLabel.textContent = `Supabase load issue: ${error.message}`;
+        return;
+    }
+
+    if (data?.app_state) {
+        state = sanitizeState({
+            ...state,
+            ...data.app_state,
+            activeTab: state.activeTab
+        });
+        persistState();
+    }
+}
+
+function scheduleSupabaseSync() {
+    if (!supabaseClient || !currentUser) {
+        return;
+    }
+
+    window.clearTimeout(syncTimer);
+    syncTimer = window.setTimeout(() => {
+        syncSupabaseState();
+    }, 650);
+}
+
+async function syncSupabaseState() {
+    if (!supabaseClient || !currentUser) {
+        return;
+    }
+
+    const displayName = currentUser.user_metadata?.display_name || "";
+    const profilePayload = {
+        user_id: currentUser.id,
+        display_name: displayName,
+        email: currentUser.email,
+        theme: state.settings.theme,
+        paper_tint: state.settings.paperTint,
+        background_shape: state.settings.backgroundShape,
+        pet_appearance: state.settings.petAppearance,
+        updated_at: new Date().toISOString()
+    };
+
+    const statsPayload = {
+        user_id: currentUser.id,
+        session_duration: state.sessionDuration,
+        completed_count: state.totalCompletedSessions,
+        failed_count: state.totalFailedSessions,
+        distraction_count: state.totalDistractionCount,
+        break_count: state.totalBreakCount,
+        weekly_completed: state.weeklyCompleted,
+        weekly_distraction_total: state.weeklyDistractionTotal,
+        weekly_session_count: state.weeklySessionCount,
+        success_streak: state.successStreak,
+        fail_streak: state.failStreak,
+        pet_level: state.petLevel,
+        next_pet_reward_threshold: state.nextPetRewardThreshold,
+        app_state: state,
+        updated_at: new Date().toISOString()
+    };
+
+    const { error: profileError } = await supabaseClient.from("user_profiles").upsert(profilePayload);
+    const { error: statsError } = await supabaseClient.from("user_app_stats").upsert(statsPayload);
+    const syncError = profileError || statsError;
+
+    if (syncError) {
+        elements.syncStatusLabel.textContent = `Sync issue: ${syncError.message}`;
+    } else {
+        elements.syncStatusLabel.textContent = `Synced ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    }
+}
+
+async function recordSupabaseSession(sessionSnapshot) {
+    if (!supabaseClient || !currentUser) {
+        return;
+    }
+
+    const payload = {
+        user_id: currentUser.id,
+        result: sessionSnapshot.result,
+        duration_minutes: sessionSnapshot.durationMinutes,
+        distractions: sessionSnapshot.distractions,
+        breaks: sessionSnapshot.breaks,
+        started_at: sessionSnapshot.startedAt,
+        ended_at: new Date().toISOString(),
+        session_state: sessionSnapshot
+    };
+
+    const { error } = await supabaseClient.from("focus_sessions").insert(payload);
+    if (error) {
+        elements.syncStatusLabel.textContent = `Session sync issue: ${error.message}`;
+    }
+}
+
+function getSessionSnapshot(result) {
+    return {
+        result,
+        durationMinutes: state.sessionDuration,
+        distractions: state.currentDistractionCount,
+        breaks: state.currentBreakCount,
+        startedAt: state.timerStartedAt ? new Date(state.timerStartedAt).toISOString() : null,
+        successStreak: state.successStreak,
+        failStreak: state.failStreak,
+        petLevel: state.petLevel
+    };
+}
+
+function initializeClock() {
+    fetchCurrentTime();
+    updateClockDisplay();
+    clockTimer = window.setInterval(updateClockDisplay, 1000);
+}
+
+async function fetchCurrentTime() {
+    try {
+        const response = await fetch("https://worldtimeapi.org/api/ip");
+        if (!response.ok) {
+            throw new Error("Time API failed");
+        }
+        const data = await response.json();
+        const apiTime = data.unixtime ? data.unixtime * 1000 : Date.parse(data.datetime);
+        if (Number.isFinite(apiTime)) {
+            serverTimeOffsetMs = apiTime - Date.now();
+        }
+    } catch (error) {
+        serverTimeOffsetMs = 0;
+        console.warn("Using local clock because current time API was unavailable.", error);
+    }
+}
+
+function updateClockDisplay() {
+    const now = new Date(Date.now() + serverTimeOffsetMs);
+    elements.currentDateTime.textContent = now.toLocaleString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit"
+    });
 }
 
 function updateTheme(themeName) {
@@ -1689,6 +2245,31 @@ function createOscillatorNode(type, frequency, volume, bucket = activeSoundNodes
     bucket.push(oscillator, gain);
     return { oscillator, gain };
 }
+
+function sendTimerNotification() {
+    if (!("Notification" in window)) {
+        return;
+    }
+    if (Notification.permission === "granted") {
+        new Notification("Friction — Time's Up", { body: "Your focus session ended. Mark your result.", icon: "favicon.svg" });
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((permission) => {
+            if (permission === "granted") {
+                new Notification("Friction — Time's Up", { body: "Your focus session ended. Mark your result.", icon: "favicon.svg" });
+            }
+        });
+    }
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT" || event.target.tagName === "TEXTAREA") {
+        return;
+    }
+    if (event.code === "Space" && state.activeTab === "focus" && state.sessionState === "idle") {
+        event.preventDefault();
+        startSession();
+    }
+});
 
 function buildFocusEnvironmentEmbedUrl() {
     return getCurrentEnvironmentDescriptor().embedUrl;
