@@ -3,6 +3,7 @@ const crypto = require("node:crypto");
 const AUTH_COOKIE = "friction_vercel_owner";
 const OAUTH_COOKIE_PREFIX = "friction_vercel_oauth_";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+const CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com; connect-src 'self' https://api.vercel.com https://*.supabase.co https://worldtimeapi.org; media-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
 
 function getOrigin(req) {
     const protocol = req.headers["x-forwarded-proto"] || "https";
@@ -36,6 +37,7 @@ function secureHeaders(extra = {}) {
         "X-Frame-Options": "DENY",
         "Referrer-Policy": "same-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+        "Content-Security-Policy": CONTENT_SECURITY_POLICY,
         "Cache-Control": "no-store",
         ...extra
     };
@@ -156,6 +158,7 @@ function html(res, status, content) {
 
 module.exports = {
     AUTH_COOKIE,
+    CONTENT_SECURITY_POLICY,
     OAUTH_COOKIE_PREFIX,
     SESSION_MAX_AGE_SECONDS,
     getOrigin,
