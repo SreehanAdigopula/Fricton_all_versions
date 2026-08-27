@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friction: Motivation + Systems</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="system-builder.css">
+</head>
+<body>
+    <canvas id="dotFieldCanvas" class="dot-field-canvas" aria-hidden="true"></canvas>
+    <main class="companion-shell">
+        <header class="companion-header sketch-panel">
+            <a class="brand-link" href="friction_html.html" aria-label="Back to Friction focus workspace">
+                <img src="friction-logo.svg" alt="Friction hourglass logo">
+                <span>Friction</span>
+            </a>
+            <div class="header-copy">
+                <p class="scribble-label">Companion Workspace</p>
+                <h1>Get a push. Build what lasts.</h1>
+                <p>Use your pet for the next small move, or build a system that still works on rough days.</p>
+            </div>
+            <a class="sketch-btn quiet-btn" href="friction_html.html">Back to Friction</a>
+        </header>
+
+        <nav class="workspace-tabs sketch-panel" aria-label="Companion workspace">
+            <button class="workspace-tab is-active" type="button" data-workspace="motivation">Motivation</button>
+            <button class="workspace-tab" type="button" data-workspace="systems">System Builder</button>
+        </nav>
+
+        <section class="workspace-view is-active" id="motivationView" data-view="motivation">
+            <article class="motivation-board sketch-panel">
+                <div class="section-heading">
+                    <p class="scribble-label">Pet Motivation</p>
+                    <h2>Turn the heavy task into one honest move.</h2>
+                    <p>Your pet will wait until you ask before reading anything aloud.</p>
+                </div>
+                <div class="motivation-grid">
+                    <form class="motivation-form" id="motivationForm">
+                        <label class="field-block">
+                            <span>Goal or intention</span>
+                            <textarea id="motivationGoal" rows="4" placeholder="What are you trying to work on right now?"></textarea>
+                        </label>
+                        <label class="field-block">
+                            <span>What is blocking you?</span>
+                            <select id="motivationBlock">
+                                <option value="stuck">I feel stuck</option>
+                                <option value="tired">I feel tired</option>
+                                <option value="overwhelmed">It feels too big</option>
+                                <option value="avoidant">I keep avoiding it</option>
+                                <option value="deadline">I have deadline pressure</option>
+                                <option value="reset">I need a reset</option>
+                            </select>
+                        </label>
+                        <div class="button-grid">
+                            <button class="sketch-btn primary-btn" type="submit">Generate</button>
+                            <button class="sketch-btn peach-btn" id="readMotivationBtn" type="button">Read Aloud</button>
+                            <button class="sketch-btn green-btn" id="sendMotivationBtn" type="button">Send Step to Focus</button>
+                            <a class="sketch-btn quiet-btn" id="visualIdeasLink" href="https://images.google.com" target="_blank" rel="noopener noreferrer">Visual Ideas</a>
+                        </div>
+                    </form>
+                    <div class="pet-coach">
+                        <div class="pet-note" id="petPortrait" aria-hidden="true">
+                            <div class="pet-face"><span></span><span></span><i></i></div>
+                            <strong id="petName">Dragon</strong>
+                        </div>
+                        <div class="speech-card">
+                            <p class="scribble-label" id="petVoiceLabel">Your pet is ready</p>
+                            <h3 id="motivationTitle">Tell me what matters right now.</h3>
+                            <p id="motivationSpeech">I will help you shrink the task into a first step you can start without pretending you feel amazing.</p>
+                            <p class="next-step" id="motivationNextStep" hidden></p>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="workspace-view" id="systemsView" data-view="systems" hidden>
+            <div id="systemsDashboard">
+                <div class="dashboard-heading sketch-panel">
+                    <div>
+                        <p class="scribble-label">Active Systems</p>
+                        <h2>Build for your real life.</h2>
+                        <p>A good system bends when your time or energy changes, then helps you return.</p>
+                    </div>
+                    <button class="sketch-btn primary-btn" id="newSystemBtn" type="button">Build a New System</button>
+                </div>
+                <div class="systems-list" id="systemsList"></div>
+            </div>
+
+            <form class="builder-shell sketch-panel" id="builderForm" hidden>
+                <div class="builder-head">
+                    <div>
+                        <p class="scribble-label">System Builder</p>
+                        <h2 id="builderStepTitle">Define the goal</h2>
+                    </div>
+                    <div class="builder-head-tools">
+                        <label class="autocorrect-toggle" for="autocorrectToggle">
+                            <input id="autocorrectToggle" type="checkbox" checked>
+                            <span>Autocorrect</span>
+                        </label>
+                        <button class="text-btn" id="closeBuilderBtn" type="button">Close</button>
+                    </div>
+                </div>
+                <ol class="builder-progress" aria-label="Builder progress">
+                    <li class="is-active" data-progress="0">Goal</li>
+                    <li data-progress="1">Reality</li>
+                    <li data-progress="2">Actions</li>
+                    <li data-progress="3">Modes</li>
+                    <li data-progress="4">Recovery</li>
+                    <li data-progress="5">Review</li>
+                </ol>
+
+                <section class="builder-step" data-step="0">
+                    <div class="form-grid">
+                        <label class="field-block"><span>System name <b class="required-star">*</b></span><input name="name" required placeholder="Raise SAT Math Score"></label>
+                        <label class="field-block"><span>Goal category</span><select name="category"><option>Academic improvement</option><option>Exam preparation</option><option>Project building</option><option>College applications</option><option>Fitness or health</option><option>Skill development</option><option>Personal routine</option><option>Custom goal</option></select></label>
+                        <label class="field-block wide"><span>What do you want to accomplish? <b class="required-star">*</b></span><textarea name="goal" required rows="3" placeholder="Increase my SAT Math score from 690 to 780."></textarea></label>
+                        <label class="field-block wide"><span>Why does this matter?</span><textarea name="why" rows="2" placeholder="What changes if you reach it?"></textarea></label>
+                        <label class="field-block"><span>Starting point</span><input name="startingPoint" placeholder="690 Math"></label>
+                        <label class="field-block"><span>Target outcome <b class="required-star">*</b></span><input name="targetOutcome" required placeholder="780 Math"></label>
+                        <label class="field-block"><span>Target date</span><input name="targetDate" type="date"></label>
+                        <label class="field-block"><span>Deadline</span><select name="deadlineType"><option value="flexible">Flexible</option><option value="fixed">Fixed</option></select></label>
+                        <label class="field-block wide"><span>How will you measure progress?</span><input name="measure" placeholder="Practice score and topic accuracy"></label>
+                    </div>
+                </section>
+
+                <section class="builder-step" data-step="1" hidden>
+                    <div class="form-grid">
+                        <label class="field-block"><span>Realistic hours per cycle <b class="required-star">*</b></span><input name="weeklyHours" type="number" min="1" max="40" value="4" required></label>
+                        <label class="field-block"><span>Best energy time</span><select name="energyTime"><option>Morning</option><option>After school</option><option>Evening</option><option>Late night</option><option>Changes often</option></select></label>
+                        <label class="field-block wide"><span>Busiest days and competing responsibilities</span><textarea name="busyReality" rows="2" placeholder="Tuesdays are packed; soccer practice on Thursday."></textarea></label>
+                        <fieldset class="choice-field wide"><legend>What usually breaks consistency?</legend><div class="choice-grid" id="obstacleChoices"></div></fieldset>
+                        <label class="field-block"><span>Resources you already have</span><textarea name="resources" rows="2" placeholder="Bluebook, question bank, class notes"></textarea></label>
+                        <label class="field-block"><span>Missing skills or resources</span><textarea name="gaps" rows="2" placeholder="Advanced algebra review"></textarea></label>
+                    </div>
+                </section>
+
+                <section class="builder-step" data-step="2" hidden>
+                    <p class="step-note">Use one item per line. Every action should describe something you can actually finish.</p>
+                    <div class="form-grid">
+                        <label class="field-block wide"><span>Major milestones <b class="required-star">*</b></span><textarea name="milestones" rows="5" required placeholder="Diagnose weak topics&#10;Master missing concepts&#10;Improve accuracy&#10;Improve speed"></textarea></label>
+                        <label class="field-block wide"><span>Core actions <b class="required-star">*</b></span><textarea name="weeklyActions" rows="5" required placeholder="Review two algebra concepts&#10;Complete three practice sets&#10;Review every mistake"></textarea></label>
+                        <label class="field-block wide"><span>Next small step <b class="required-star">*</b></span><input name="nextStep" required placeholder="Complete a 15-question algebra diagnostic"></label>
+                    </div>
+                </section>
+
+                <section class="builder-step" data-step="3" hidden>
+                    <div class="mode-stack">
+                        <label class="mode-card full-mode"><span>Full Mode <b class="required-star">*</b></span><small>Normal time and energy</small><textarea name="fullAction" rows="2" required placeholder="45-minute module and mistake review"></textarea></label>
+                        <label class="mode-card reduced-mode"><span>Reduced Mode <b class="required-star">*</b></span><small>Tired, busy, or overwhelmed</small><textarea name="reducedAction" rows="2" required placeholder="10 questions for 15 minutes"></textarea></label>
+                        <label class="mode-card survival-mode"><span>Survival Mode <b class="required-star">*</b></span><small>The smallest action that keeps the system alive</small><textarea name="survivalAction" rows="2" required placeholder="One question and its explanation"></textarea></label>
+                    </div>
+                    <div class="form-grid routine-grid">
+                        <label class="field-block"><span>Work days</span><input name="days" placeholder="Monday, Wednesday, Friday"></label>
+                        <label class="field-block"><span>Time or event trigger</span><input name="trigger" placeholder="dinner"></label>
+                        <label class="field-block"><span>Where</span><input name="place" placeholder="my desk"></label>
+                        <label class="field-block"><span>Prepare beforehand</span><input name="preparation" placeholder="Phone outside room, Bluebook open"></label>
+                    </div>
+                </section>
+
+                <section class="builder-step" data-step="4" hidden>
+                    <div class="form-grid">
+                        <label class="field-block wide"><span>Environment rules</span><textarea name="environmentRules" rows="4" placeholder="Put phone in another room&#10;Open only the tabs needed&#10;Prepare materials the night before"></textarea></label>
+                        <label class="field-block wide"><span>If-then backup plans</span><textarea name="backupPlans" rows="4" placeholder="If I miss a session, use Reduced Mode the next morning.&#10;If I feel overwhelmed, do the Survival action."></textarea></label>
+                        <label class="field-block wide"><span>Restart protocol</span><textarea name="restartProtocol" rows="3">Remove overdue tasks. Complete one Survival action. Use Reduced Mode for the next two sessions, then reassess.</textarea></label>
+                        <label class="field-block"><span>Review day</span><select name="reviewDay"><option>Sunday</option><option>Monday</option><option>Friday</option><option>Saturday</option></select></label>
+                    </div>
+                </section>
+
+                <section class="builder-step summary-step" data-step="5" hidden>
+                    <div id="systemSummary"></div>
+                    <p class="summary-hint">Everything in this summary comes from the fields you just completed. Go back to edit any part before activating it.</p>
+                </section>
+
+                <div class="builder-actions">
+                    <button class="sketch-btn quiet-btn" id="builderBackBtn" type="button">Back</button>
+                    <button class="sketch-btn primary-btn" id="builderNextBtn" type="button">Continue</button>
+                    <button class="sketch-btn green-btn" id="activateSystemBtn" type="submit" hidden>Activate My System</button>
+                </div>
+                <p class="form-error" id="builderError" role="alert" hidden></p>
+            </form>
+
+            <section class="daily-shell sketch-panel" id="dailySystemView" hidden></section>
+            <section class="review-shell sketch-panel" id="reviewSystemView" hidden></section>
+        </section>
+
+        <footer class="companion-footer">
+            <a href="friction_html.html">Focus Workspace</a>
+            <a href="app-rules.html">App Rules</a>
+            <a href="policies.html">Policies</a>
+        </footer>
+    </main>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
+    <script src="access-control.js"></script>
+    <script src="system-builder.js"></script>
+</body>
+</html>

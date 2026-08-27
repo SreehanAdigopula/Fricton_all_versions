@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="fictioncss.css">
 </head>
 <body>
+    <canvas id="sketchFlowCanvas" class="sketch-flow-canvas" aria-hidden="true"></canvas>
     <main class="app-shell" id="appShell" hidden>
         <section class="hero-board wobble-xl pin-card">
             <div class="hero-copy">
@@ -41,6 +42,7 @@
         <nav class="tab-strip" aria-label="Primary">
             <button class="tab-btn is-active" data-tab="home" id="tabHome">Home</button>
             <button class="tab-btn" data-tab="focus" id="tabFocus">Focus</button>
+            <a class="tab-btn companion-link" href="system-builder.html#motivation" id="tabMotivation">Motivation + Systems</a>
             <button class="tab-btn" data-tab="pet" id="tabPet">Pet</button>
             <button class="tab-btn" data-tab="settings" id="tabSettings">Settings</button>
         </nav>
@@ -143,6 +145,12 @@
                 </div>
                 <div class="media-stage wobble-lg" id="focusMediaStage" data-shell="empty">
                     <div class="media-empty" id="focusMediaEmpty">Choose a study source to load it here.</div>
+                    <div class="media-fallback" id="focusMediaFallback" hidden>
+                        <span class="generated-media-chip">YouTube preview unavailable</span>
+                        <strong>Keep your focus setup open.</strong>
+                        <p>This source cannot play inside this browser right now. Open it in YouTube, then come straight back to your timer.</p>
+                        <button id="openFocusSourceBtn" class="sketch-btn primary-btn" type="button">Open on YouTube</button>
+                    </div>
                     <div class="generated-media-card" id="focusGeneratedVisual" hidden>
                         <span class="generated-media-chip" id="focusGeneratedChip">Built-in environment</span>
                         <strong id="focusGeneratedTitle">Pick a built-in sound</strong>
@@ -153,7 +161,7 @@
                         class="focus-media-frame"
                         title="Focus environment media"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        referrerpolicy="origin"
+                        referrerpolicy="unsafe-url"
                     ></iframe>
                 </div>
             </article>
@@ -173,6 +181,7 @@
                     <div class="stack-actions two-up">
                         <button id="startBtn" class="sketch-btn primary-btn">Start Session</button>
                         <button id="focusHomeBtn" class="sketch-btn ghost-btn">Back To Home</button>
+                        <button id="clearSystemTaskBtn" class="sketch-btn secondary-btn wide-action" type="button" hidden>Clear System Action</button>
                     </div>
                 </article>
 
@@ -193,6 +202,7 @@
                         <button id="distractedBtn" class="sketch-btn warning-btn">Distracted</button>
                         <button id="breakBtn" class="sketch-btn secondary-btn">Break</button>
                         <button id="failBtn" class="sketch-btn danger-btn">Failed</button>
+                        <button id="motivationBtn" class="sketch-btn primary-btn wide-action">Motivation + System Builder</button>
                     </div>
                     <div class="focus-rulebook wobble-md">
                         <p class="mini-label">Rules In Play</p>
@@ -210,6 +220,27 @@
                 </article>
             </div>
 
+            <div class="panel-grid panel-grid-parking">
+                <article class="board-card parking-lot-board wobble-md">
+                    <span class="tape tape-right"></span>
+                    <div>
+                        <p class="scribble-label">Thought Parking Lot</p>
+                        <p class="card-copy">Put a distracting thought somewhere safe, then get back to the thing in front of you. Later, promote it into a motivation goal or dismiss it.</p>
+                        <div class="parking-lot-entry">
+                            <input id="parkingLotInput" class="sketch-input" type="text" maxlength="160" placeholder="I should remember to...">
+                            <button id="parkThoughtBtn" class="sketch-btn secondary-btn" type="button">Park It</button>
+                        </div>
+                    </div>
+                    <div class="parking-lot-notes" aria-live="polite">
+                        <div class="parking-lot-head">
+                            <p class="mini-label">Saved For Later</p>
+                            <button id="clearParkingLotBtn" class="text-action" type="button">Clear</button>
+                        </div>
+                        <ul id="parkingLotList" class="parking-lot-list"></ul>
+                    </div>
+                </article>
+            </div>
+
             <div class="panel-grid panel-grid-focus-extra">
                 <article class="board-card wobble-lg rotate-left">
                     <p class="scribble-label">Focus Environment</p>
@@ -223,7 +254,7 @@
                                 <section class="track-group wobble-md">
                                     <div class="track-group-head">
                                         <span class="mini-label">Nature Collection</span>
-                                        <p class="track-group-copy">Rain, waterfalls, frogs, owls, and other real nature ambience from your PDF list.</p>
+                                        <p class="track-group-copy">Rain, waterfalls, frogs, owls, and other real nature ambience.</p>
                                     </div>
                                     <select class="track-select" id="natureTrackList" aria-label="Nature collection"></select>
                                 </section>
@@ -239,7 +270,7 @@
                                 <section class="track-group wobble-md">
                                     <div class="track-group-head">
                                         <span class="mini-label">Handpan Collection</span>
-                                        <p class="track-group-copy">Your handpan tracks from the PDF list.</p>
+                                        <p class="track-group-copy">Built-in handpan tracks for calm focus.</p>
                                     </div>
                                     <select class="track-select" id="handpanTrackList" aria-label="Handpan collection"></select>
                                 </section>
@@ -286,6 +317,51 @@
                             </div>
                         </div>
                     </details>
+                </article>
+            </div>
+        </section>
+
+        <section class="tab-panel" id="panel-motivation" data-panel="motivation" hidden>
+            <div class="panel-grid panel-grid-motivation" id="motivationBoostPanel">
+                <article class="board-card motivation-board wobble-md">
+                    <span class="tape tape-left"></span>
+                    <p class="scribble-label">Pet Motivation</p>
+                    <h2 class="card-title motivation-heading">A small push from your focus buddy.</h2>
+                    <p class="card-copy motivation-intro">Tell your pet what matters right now. It will turn the big project into one honest next move.</p>
+                    <div class="motivation-layout">
+                        <div class="motivation-controls">
+                            <label class="setting-item wobble-sm">
+                                <span>Goal Or Intention</span>
+                                <textarea id="motivationGoalInput" class="sketch-input motivation-goal-input" rows="3" placeholder="What are you trying to work on right now?"></textarea>
+                            </label>
+                            <label class="setting-item wobble-sm">
+                                <span>Current Block</span>
+                                <select id="motivationMoodSelect" class="sketch-select">
+                                    <option value="stuck">I feel stuck</option>
+                                    <option value="tired">I feel tired</option>
+                                    <option value="overwhelmed">It feels too big</option>
+                                    <option value="avoidant">I keep avoiding it</option>
+                                    <option value="deadline">I have deadline pressure</option>
+                                    <option value="reset">I need a reset</option>
+                                </select>
+                            </label>
+                            <div class="motivation-action-grid">
+                                <button id="generateMotivationBtn" class="sketch-btn primary-btn">Generate</button>
+                                <button id="speakMotivationBtn" class="sketch-btn secondary-btn">Read Aloud</button>
+                                <button id="playMotivationSongBtn" class="sketch-btn success-btn">Play Song</button>
+                                <button id="stopMotivationSongBtn" class="sketch-btn danger-btn">Stop</button>
+                            </div>
+                        </div>
+                        <div class="motivation-pet-speech">
+                            <div class="motivation-pet-art wobble-sm" id="motivationPetArt"></div>
+                            <div class="speech-bubble motivation-speech-bubble wobble-md">
+                                <p class="mini-label" id="motivationSpeaker">Your pet is ready</p>
+                                <strong id="motivationTitle">Tell your pet what you are trying to do.</strong>
+                                <p id="motivationSpeech">When motivation drops, your selected pet can turn your goal into a small pep talk and read it out loud.</p>
+                                <a id="motivationOnlineLink" class="motivation-online-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Find visual ideas for this goal</a>
+                            </div>
+                        </div>
+                    </div>
                 </article>
             </div>
         </section>
@@ -358,6 +434,8 @@
                                 <option value="forest">Forest Desk</option>
                                 <option value="midnight">Midnight Flow</option>
                                 <option value="citrus">Citrus Sprint</option>
+                                <option value="white">White Desk</option>
+                                <option value="black">Dark Desk</option>
                             </select>
                         </label>
                         <label class="setting-item wobble-md">
@@ -377,21 +455,17 @@
                                 <option value="minimal">Minimal</option>
                             </select>
                         </label>
+                        <label class="setting-item wobble-md checkbox-item">
+                            <span class="mini-label">Moving Sketch Background</span>
+                            <input id="motionBackgroundToggle" type="checkbox" checked>
+                            <span>Let the 3D desk lines drift quietly behind the app.</span>
+                        </label>
                     </div>
                 </article>
 
                 <article class="board-card sticky-card wobble-lg rotate-right">
-                    <p class="scribble-label">Sound & Helpers</p>
+                    <p class="scribble-label">Helpers</p>
                     <div class="settings-stack">
-                        <label class="setting-item wobble-md">
-                            <span class="mini-label">Background Music</span>
-                            <select id="soundModeSelect" class="sketch-select">
-                                <option value="off">Off</option>
-                                <option value="hum">Soft Hum</option>
-                                <option value="pulse">Focus Pulse</option>
-                                <option value="noise">Rain Noise</option>
-                            </select>
-                        </label>
                         <label class="setting-item wobble-md checkbox-item">
                             <span class="mini-label">Session Hints</span>
                             <input id="hintsToggle" type="checkbox" checked>
@@ -452,6 +526,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabaseConfig.js"></script>
+    <script src="access-control.js"></script>
     <script src="frictionJS.js"></script>
 </body>
 </html>

@@ -29,9 +29,12 @@ function bindLoginEvents() {
 
 async function initializeLoginPage() {
     const config = window.FRICTION_SUPABASE_CONFIG || {};
+    configureHostedLogin();
 
     if (!config.url || !config.anonKey) {
-        updateAuthStatus("Friction's login database is not available right now. Try Offline Mode or contact the site owner.");
+        updateAuthStatus(window.FrictionAccess?.isLocalPreview()
+            ? "Friction's login database is not available right now. Try Offline Mode or contact the site owner."
+            : "Friction is under construction right now.");
         return;
     }
 
@@ -47,11 +50,27 @@ async function initializeLoginPage() {
         return;
     }
 
-    if (data.session?.user) {
+    if (data.session?.user && isAllowedOwnerEmail(data.session.user.email)) {
+        window.FrictionAccess?.rememberOwnerAccess(data.session.user.email);
         goToApp();
+    } else if (data.session?.user) {
+        await supabaseClient.auth.signOut();
+        window.FrictionAccess?.forgetOwnerAccess();
+        updateAuthStatus("Friction is private right now. This email does not have access yet.");
     } else {
-        updateAuthStatus("Sign in or create an account to get started.");
+        updateAuthStatus(window.FrictionAccess?.isLocalPreview()
+            ? "Sign in or create an account to get started."
+            : "Friction is under construction. Owner sign-in is available for testing.");
     }
+}
+
+function configureHostedLogin() {
+    if (window.FrictionAccess?.isLocalPreview()) {
+        return;
+    }
+
+    elements.offlineModeBtn.disabled = true;
+    elements.offlineModeBtn.title = "Offline Mode is only available while testing locally.";
 }
 
 async function signInUser() {
@@ -71,6 +90,11 @@ async function signInUser() {
         return;
     }
 
+    if (!isAllowedOwnerEmail(email)) {
+        updateAuthStatus("Friction is private right now. This email does not have access yet.");
+        return;
+    }
+
     setAuthLoading(true, "Checking your login...");
     try {
         const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -80,6 +104,7 @@ async function signInUser() {
         }
 
         window.localStorage.removeItem(OFFLINE_MODE_STORAGE_KEY);
+        window.FrictionAccess?.rememberOwnerAccess(email);
         updateAuthStatus("Signed in. Opening your desk...");
         goToApp();
     } finally {
@@ -102,6 +127,11 @@ async function signUpUser() {
     const displayName = elements.authNameInput.value.trim();
     if (!email || !password) {
         updateAuthStatus("Enter an email and password to create your account.");
+        return;
+    }
+
+    if (!isAllowedOwnerEmail(email)) {
+        updateAuthStatus("Friction is private right now. Account creation is only open to approved testers.");
         return;
     }
 
@@ -130,6 +160,7 @@ async function signUpUser() {
             return;
         }
 
+        window.FrictionAccess?.rememberOwnerAccess(email);
         updateAuthStatus("Account created. Opening your desk...");
         goToApp();
     } finally {
@@ -138,8 +169,17 @@ async function signUpUser() {
 }
 
 function enterOfflineMode() {
+    if (!window.FrictionAccess?.isLocalPreview()) {
+        updateAuthStatus("Offline Mode is only available while testing locally.");
+        return;
+    }
+
     window.localStorage.setItem(OFFLINE_MODE_STORAGE_KEY, "1");
     goToApp();
+}
+
+function isAllowedOwnerEmail(email) {
+    return window.FrictionAccess?.isLocalPreview() || window.FrictionAccess?.isAllowedEmail(email);
 }
 
 function updateAuthStatus(message) {
@@ -167,7 +207,7 @@ function setAuthLoading(isLoading, message = "") {
     authRequestInFlight = isLoading;
     elements.signInBtn.disabled = isLoading;
     elements.signUpBtn.disabled = isLoading;
-    elements.offlineModeBtn.disabled = isLoading;
+    elements.offlineModeBtn.disabled = isLoading || !window.FrictionAccess?.isLocalPreview();
 
     if (message) {
         updateAuthStatus(message);

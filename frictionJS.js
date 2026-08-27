@@ -49,13 +49,7 @@ const CONFIG = {
         wolf: { emoji: "Wolf", summary: "Disciplined, alert, and great at streaks." },
         bunny: { emoji: "Bunny", summary: "Soft energy with surprisingly strong consistency." },
         turtle: { emoji: "Turtle", summary: "Slow, steady, and made for deep work." }
-    },
-    petForms: [
-        { name: "Paper Pup", note: "Learns to sit with you while you build the habit." },
-        { name: "Sticky Scout", note: "Shows up after your first strong weekly milestone." },
-        { name: "Marker Hero", note: "Starts feeling legendary once focus becomes consistent." },
-        { name: "Sketch Guardian", note: "Protects your streaks and keeps the chaos low." }
-    ]
+    }
 };
 
 const defaultState = {
@@ -64,6 +58,7 @@ const defaultState = {
         theme: "classic",
         paperTint: "#fdfbf7",
         backgroundShape: "doodles",
+        motionBackground: true,
         soundMode: "off",
         showHints: true,
         petAppearance: "dragon"
@@ -76,6 +71,15 @@ const defaultState = {
         customLink: "",
         customMediaType: "video"
     },
+    motivation: {
+        goal: "",
+        mood: "stuck",
+        lastSpeech: "",
+        lastSearchUrl: "",
+        songPlaying: false
+    },
+    parkingLot: [],
+    systemTask: "",
     sessionDuration: CONFIG.defaultSessionMinutes,
     failStreak: 0,
     successStreak: 0,
@@ -88,6 +92,8 @@ const defaultState = {
     totalFailedSessions: 0,
     totalDistractionCount: 0,
     totalBreakCount: 0,
+    petStressDistractions: 0,
+    petStressFailures: 0,
     adaptiveProfile: {
         recentEvents: [],
         recommendedMinutes: CONFIG.defaultSessionMinutes,
@@ -112,12 +118,30 @@ const elements = {
     homeFocusBtn: document.getElementById("homeFocusBtn"),
     focusHomeBtn: document.getElementById("focusHomeBtn"),
     startBtn: document.getElementById("startBtn"),
+    clearSystemTaskBtn: document.getElementById("clearSystemTaskBtn"),
     resetWeekBtn: document.getElementById("resetWeekBtn"),
     completeBtn: document.getElementById("completeBtn"),
     distractedBtn: document.getElementById("distractedBtn"),
     breakBtn: document.getElementById("breakBtn"),
     failBtn: document.getElementById("failBtn"),
+    motivationBtn: document.getElementById("motivationBtn"),
     sessionControls: document.getElementById("sessionControls"),
+    motivationBoostPanel: document.getElementById("motivationBoostPanel"),
+    parkingLotInput: document.getElementById("parkingLotInput"),
+    parkThoughtBtn: document.getElementById("parkThoughtBtn"),
+    clearParkingLotBtn: document.getElementById("clearParkingLotBtn"),
+    parkingLotList: document.getElementById("parkingLotList"),
+    motivationGoalInput: document.getElementById("motivationGoalInput"),
+    motivationMoodSelect: document.getElementById("motivationMoodSelect"),
+    generateMotivationBtn: document.getElementById("generateMotivationBtn"),
+    speakMotivationBtn: document.getElementById("speakMotivationBtn"),
+    playMotivationSongBtn: document.getElementById("playMotivationSongBtn"),
+    stopMotivationSongBtn: document.getElementById("stopMotivationSongBtn"),
+    motivationPetArt: document.getElementById("motivationPetArt"),
+    motivationSpeaker: document.getElementById("motivationSpeaker"),
+    motivationTitle: document.getElementById("motivationTitle"),
+    motivationSpeech: document.getElementById("motivationSpeech"),
+    motivationOnlineLink: document.getElementById("motivationOnlineLink"),
     sessionInfo: document.getElementById("sessionInfo"),
     sessionStatus: document.getElementById("sessionStatus"),
     timerDisplay: document.getElementById("timerDisplay"),
@@ -139,6 +163,8 @@ const elements = {
     focusMediaStage: document.getElementById("focusMediaStage"),
     focusMediaFrame: document.getElementById("focusMediaFrame"),
     focusMediaEmpty: document.getElementById("focusMediaEmpty"),
+    focusMediaFallback: document.getElementById("focusMediaFallback"),
+    openFocusSourceBtn: document.getElementById("openFocusSourceBtn"),
     focusGeneratedVisual: document.getElementById("focusGeneratedVisual"),
     focusGeneratedChip: document.getElementById("focusGeneratedChip"),
     focusGeneratedTitle: document.getElementById("focusGeneratedTitle"),
@@ -181,9 +207,11 @@ const elements = {
     paperTintInput: document.getElementById("paperTintInput"),
     paperTintValue: document.getElementById("paperTintValue"),
     shapeSelect: document.getElementById("shapeSelect"),
+    motionBackgroundToggle: document.getElementById("motionBackgroundToggle"),
     soundModeSelect: document.getElementById("soundModeSelect"),
     hintsToggle: document.getElementById("hintsToggle"),
     petAppearanceSelect: document.getElementById("petAppearanceSelect"),
+    sketchFlowCanvas: document.getElementById("sketchFlowCanvas"),
     appShell: document.getElementById("appShell"),
     signOutBtn: document.getElementById("signOutBtn"),
     authUserLabel: document.getElementById("authUserLabel"),
@@ -197,8 +225,27 @@ let timer = null;
 let audioContext = null;
 let activeSoundNodes = [];
 let environmentSoundNodes = [];
+let motivationSongNodes = [];
+let motivationSongTimer = null;
+let motivationStepIndex = 0;
 let lastFocusEmbedUrl = "";
+let focusEmbedFailed = false;
 let activeGeneratedTrackId = "";
+let sketchFlowContext = null;
+let sketchFlowFrame = null;
+let sketchFlowLastFrameAt = 0;
+let sketchFlowPixelRatio = 1;
+let sketchFlowWidth = 0;
+let sketchFlowHeight = 0;
+let dotFieldDots = [];
+let dotFieldMouse = { x: -9999, y: -9999, prevX: -9999, prevY: -9999, speed: 0 };
+let dotFieldEngagement = 0;
+let dotFieldPalette = {
+    dotStart: "rgba(45, 93, 161, 0.24)",
+    dotEnd: "rgba(45, 93, 161, 0.08)",
+    glowStart: "rgba(45, 93, 161, 0.12)",
+    glowEnd: "rgba(45, 93, 161, 0)"
+};
 let supabaseClient = null;
 let currentUser = null;
 let isOfflineMode = false;
@@ -206,20 +253,30 @@ let serverTimeOffsetMs = 0;
 let clockTimer = null;
 let syncTimer = null;
 
-bindEvents();
-elements.petSketch.className = "pet-sketch";
-elements.petPortrait.prepend(elements.petSketch);
-if (!canUseStorage) {
-    showStorageWarning();
+initializeApp();
+
+async function initializeApp() {
+    const canOpenHostedPage = await window.FrictionAccess?.guardHostedPage?.();
+    if (canOpenHostedPage === false) {
+        return;
+    }
+
+    initializeSketchBackground();
+    bindEvents();
+    elements.petSketch.className = "pet-sketch";
+    elements.petPortrait.prepend(elements.petSketch);
+    if (!canUseStorage) {
+        showStorageWarning();
+    }
+    resumeRunningSessionIfNeeded();
+    render();
+    if (state.settings.soundMode !== "off") {
+        syncSoundMode();
+    }
+    syncFocusEnvironment();
+    initializeClock();
+    initializeSupabaseAuth();
 }
-resumeRunningSessionIfNeeded();
-render();
-if (state.settings.soundMode !== "off") {
-    syncSoundMode();
-}
-syncFocusEnvironment();
-initializeClock();
-initializeSupabaseAuth();
 
 function bindEvents() {
     elements.appTabs.forEach((tabButton) => {
@@ -238,15 +295,44 @@ function bindEvents() {
     elements.homeFocusBtn.addEventListener("click", () => setActiveTab("focus"));
     elements.focusHomeBtn.addEventListener("click", () => setActiveTab("home"));
     elements.startBtn.addEventListener("click", startSession);
+    elements.clearSystemTaskBtn.addEventListener("click", clearSystemTask);
     elements.completeBtn.addEventListener("click", completeSession);
     elements.distractedBtn.addEventListener("click", markDistracted);
     elements.breakBtn.addEventListener("click", takeBreak);
     elements.failBtn.addEventListener("click", failSession);
+    elements.motivationBtn.addEventListener("click", runMotivationBoost);
+    elements.parkThoughtBtn.addEventListener("click", parkThought);
+    elements.parkingLotInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            parkThought();
+        }
+    });
+    elements.clearParkingLotBtn.addEventListener("click", clearParkingLot);
+    elements.parkingLotList.addEventListener("click", handleParkingLotAction);
+    elements.motivationGoalInput.addEventListener("input", (event) => {
+        state.motivation.goal = event.target.value;
+        state.motivation.lastSpeech = "";
+        renderMotivation();
+        elements.motivationOnlineLink.href = buildMotivationSearchUrl(getMotivationGoal(), state.motivation.mood);
+        persistState();
+        scheduleSupabaseSync();
+    });
+    elements.motivationMoodSelect.addEventListener("change", (event) => {
+        state.motivation.mood = normalizeMotivationMood(event.target.value);
+        saveAndRender();
+    });
+    elements.generateMotivationBtn.addEventListener("click", () => generateMotivation());
+    elements.speakMotivationBtn.addEventListener("click", speakMotivation);
+    elements.playMotivationSongBtn.addEventListener("click", playMotivationSong);
+    elements.stopMotivationSongBtn.addEventListener("click", () => stopMotivationSong());
+    elements.openFocusSourceBtn.addEventListener("click", openFocusSource);
     elements.resetWeekBtn.addEventListener("click", resetWeek);
     elements.themeSelect.addEventListener("change", (event) => updateTheme(event.target.value));
     elements.paperTintInput.addEventListener("input", (event) => updatePaperTint(event.target.value));
     elements.shapeSelect.addEventListener("change", (event) => updateBackgroundShape(event.target.value));
-    elements.soundModeSelect.addEventListener("change", (event) => updateSoundMode(event.target.value));
+    elements.motionBackgroundToggle.addEventListener("change", (event) => updateMotionBackgroundPreference(event.target.checked));
+    elements.soundModeSelect?.addEventListener("change", (event) => updateSoundMode(event.target.value));
     elements.hintsToggle.addEventListener("change", (event) => updateHintsPreference(event.target.checked));
     elements.petAppearanceSelect.addEventListener("change", (event) => updatePetAppearance(event.target.value));
     elements.environmentPlayBtn.addEventListener("click", playEnvironment);
@@ -292,6 +378,9 @@ function sanitizeState(savedState) {
         activeTab: normalizeTab(savedState.activeTab),
         settings: sanitizeSettings(savedState.settings),
         focusEnvironment: sanitizeFocusEnvironment(savedState.focusEnvironment),
+        motivation: sanitizeMotivation(savedState.motivation),
+        parkingLot: sanitizeParkingLot(savedState.parkingLot),
+        systemTask: typeof savedState.systemTask === "string" ? savedState.systemTask.slice(0, 240) : "",
         sessionDuration: toPositiveNumber(savedState.sessionDuration, CONFIG.defaultSessionMinutes),
         failStreak: toPositiveNumber(savedState.failStreak, 0),
         successStreak: toPositiveNumber(savedState.successStreak, 0),
@@ -304,6 +393,8 @@ function sanitizeState(savedState) {
         totalFailedSessions: toPositiveNumber(savedState.totalFailedSessions, 0),
         totalDistractionCount: toPositiveNumber(savedState.totalDistractionCount, savedState.weeklyDistractionTotal || 0),
         totalBreakCount: toPositiveNumber(savedState.totalBreakCount, 0),
+        petStressDistractions: toPositiveNumber(savedState.petStressDistractions, Math.min(savedState.totalDistractionCount || 0, CONFIG.petSadDistractionThreshold)),
+        petStressFailures: toPositiveNumber(savedState.petStressFailures, Math.min(savedState.totalFailedSessions || 0, CONFIG.petSadFailureThreshold)),
         adaptiveProfile: sanitizeAdaptiveProfile(savedState.adaptiveProfile),
         petLevel: Math.max(1, toPositiveNumber(savedState.petLevel, 1)),
         nextPetRewardThreshold: Math.max(CONFIG.petRewardSessionStep, toPositiveNumber(savedState.nextPetRewardThreshold, CONFIG.petRewardSessionStep)),
@@ -319,18 +410,29 @@ function normalizeTab(value) {
     return ["home", "focus", "pet", "settings"].includes(value) ? value : "home";
 }
 
+function sanitizeParkingLot(savedParkingLot) {
+    if (!Array.isArray(savedParkingLot)) {
+        return [];
+    }
+
+    return savedParkingLot
+        .filter((thought) => typeof thought === "string")
+        .map((thought) => thought.trim().slice(0, 160))
+        .filter(Boolean)
+        .slice(0, 5);
+}
+
 function sanitizeSettings(savedSettings = {}) {
     return {
-        theme: ["classic", "blueprint", "sunset", "forest", "midnight", "citrus"].includes(savedSettings.theme)
+        theme: ["classic", "blueprint", "sunset", "forest", "midnight", "citrus", "white", "black"].includes(savedSettings.theme)
             ? savedSettings.theme
             : "classic",
         paperTint: typeof savedSettings.paperTint === "string" ? savedSettings.paperTint : "#fdfbf7",
         backgroundShape: ["doodles", "orbit", "confetti", "calm", "minimal"].includes(savedSettings.backgroundShape)
             ? savedSettings.backgroundShape
             : "doodles",
-        soundMode: ["off", "hum", "pulse", "noise"].includes(savedSettings.soundMode)
-            ? savedSettings.soundMode
-            : "off",
+        motionBackground: savedSettings.motionBackground !== false,
+        soundMode: "off",
         showHints: savedSettings.showHints !== false,
         petAppearance: Object.hasOwn(CONFIG.petAppearances, savedSettings.petAppearance)
             ? savedSettings.petAppearance
@@ -359,6 +461,22 @@ function sanitizeFocusEnvironment(savedEnvironment = {}) {
             ? savedEnvironment.customMediaType
             : "video"
     };
+}
+
+function sanitizeMotivation(savedMotivation = {}) {
+    return {
+        goal: typeof savedMotivation.goal === "string" ? savedMotivation.goal.slice(0, 220) : "",
+        mood: normalizeMotivationMood(savedMotivation.mood),
+        lastSpeech: typeof savedMotivation.lastSpeech === "string" ? savedMotivation.lastSpeech.slice(0, 900) : "",
+        lastSearchUrl: typeof savedMotivation.lastSearchUrl === "string" ? savedMotivation.lastSearchUrl : "",
+        songPlaying: false
+    };
+}
+
+function normalizeMotivationMood(value) {
+    return ["stuck", "tired", "overwhelmed", "avoidant", "deadline", "reset"].includes(value)
+        ? value
+        : "stuck";
 }
 
 function sanitizeAdaptiveProfile(savedProfile = {}) {
@@ -507,25 +625,36 @@ function completeSession() {
         return;
     }
 
+    const isCleanSession = state.currentDistractionCount === 0 && state.currentBreakCount === 0;
     const sessionSnapshot = getSessionSnapshot("completed");
     finalizeSessionBase();
     state.weeklyCompleted += 1;
     state.totalCompletedSessions += 1;
-    state.successStreak += 1;
+    state.successStreak = isCleanSession ? state.successStreak + 1 : 0;
     state.failStreak = 0;
 
     let sessionMessage = "Session completed. Nice work.";
+    applyBonusCountdown();
 
-    if (state.currentDistractionCount === 0 && state.successStreak >= CONFIG.cleanStreakRewardThreshold) {
+    if (isCleanSession) {
+        recoverPetStress();
+    } else {
+        sessionMessage = "Session completed, but it was not clean enough for a clean-win streak.";
+    }
+
+    const earnedCleanReward = isCleanSession
+        && state.successStreak === CONFIG.cleanStreakRewardThreshold
+        && state.cleanStreakBonusSessionsLeft <= 0;
+
+    if (earnedCleanReward) {
         state.cleanStreakBonusSessionsLeft = CONFIG.cleanStreakRewardSessions;
-        state.sessionDuration += CONFIG.cleanStreakRewardMinutes;
+        state.sessionDuration = clampSessionMinutes(state.sessionDuration + CONFIG.cleanStreakRewardMinutes);
         sessionMessage = "Three clean sessions in a row. Your next sessions just got longer.";
     }
 
-    applyBonusCountdown();
     const petMessage = checkWeeklyReward();
     recordAdaptiveEvent("completed");
-    const adaptiveMessage = applyAdaptiveSessionPlan();
+    const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: !earnedCleanReward });
     updateOutput(`${petMessage || sessionMessage} ${adaptiveMessage}`);
     recordSupabaseSession(sessionSnapshot);
     saveAndRender();
@@ -540,6 +669,7 @@ function markDistracted() {
 
     state.currentDistractionCount += 1;
     state.totalDistractionCount += 1;
+    state.petStressDistractions += 1;
     recordAdaptiveEvent("distraction");
     updateAdaptiveProfile();
 
@@ -585,6 +715,7 @@ function failSession() {
     const sessionSnapshot = getSessionSnapshot("failed");
     finalizeSessionBase();
     state.totalFailedSessions += 1;
+    state.petStressFailures += 1;
     state.failStreak += 1;
     state.successStreak = 0;
 
@@ -597,7 +728,7 @@ function failSession() {
 
     applyBonusCountdown();
     recordAdaptiveEvent("failed");
-    const adaptiveMessage = applyAdaptiveSessionPlan();
+    const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: false });
     updateOutput(`${sessionMessage} ${adaptiveMessage}`);
     recordSupabaseSession(sessionSnapshot);
     saveAndRender();
@@ -638,6 +769,11 @@ function applyBonusCountdown() {
     }
 }
 
+function recoverPetStress() {
+    state.petStressDistractions = Math.max(0, state.petStressDistractions - CONFIG.distractionLimit);
+    state.petStressFailures = Math.max(0, state.petStressFailures - 1);
+}
+
 function checkWeeklyReward() {
     if (
         state.weeklyCompleted >= state.nextPetRewardThreshold &&
@@ -663,6 +799,8 @@ function resetWeek() {
         weeklySessionCount: 0,
         failStreak: 0,
         successStreak: 0,
+        petStressDistractions: 0,
+        petStressFailures: 0,
         nextPetRewardThreshold: CONFIG.petRewardSessionStep,
         currentDistractionCount: 0,
         currentBreakCount: 0,
@@ -682,6 +820,280 @@ function getWeeklyAverage() {
     }
 
     return state.weeklyDistractionTotal / state.weeklySessionCount;
+}
+
+function runMotivationBoost() {
+    persistState();
+    window.location.href = "system-builder.html#motivation";
+}
+
+function parkThought() {
+    const thought = elements.parkingLotInput.value.trim().slice(0, 160);
+    if (!thought) {
+        elements.parkingLotInput.focus();
+        return;
+    }
+
+    state.parkingLot = [thought, ...state.parkingLot.filter((item) => item !== thought)].slice(0, 5);
+    elements.parkingLotInput.value = "";
+    updateOutput("Thought parked. Back to the work in front of you.");
+    saveAndRender();
+}
+
+function clearParkingLot() {
+    if (!state.parkingLot.length) {
+        return;
+    }
+
+    state.parkingLot = [];
+    updateOutput("Thought parking lot cleared.");
+    saveAndRender();
+}
+
+function handleParkingLotAction(event) {
+    const actionButton = event.target.closest("button[data-parking-action]");
+    if (!actionButton) {
+        return;
+    }
+
+    const thoughtIndex = Number(actionButton.dataset.parkingIndex);
+    const thought = state.parkingLot[thoughtIndex];
+    if (!thought) {
+        return;
+    }
+
+    if (actionButton.dataset.parkingAction === "use") {
+        state.motivation.goal = thought;
+        state.motivation.lastSpeech = "";
+        state.activeTab = "focus";
+        updateOutput("Thought moved into Motivation. Generate a fresh next step when you are ready.");
+        persistState();
+        window.location.href = "system-builder.html#motivation";
+        return;
+    } else {
+        state.parkingLot.splice(thoughtIndex, 1);
+        updateOutput("Thought dismissed from the parking lot.");
+    }
+
+    saveAndRender();
+}
+
+function generateMotivation() {
+    const typedGoal = elements.motivationGoalInput.value.trim();
+    state.motivation.goal = typedGoal || state.motivation.goal.trim();
+    state.motivation.mood = normalizeMotivationMood(elements.motivationMoodSelect.value);
+    const generated = buildMotivationSpeech();
+    state.motivation.lastSpeech = generated.speech;
+    state.motivation.lastSearchUrl = generated.searchUrl;
+    updateOutput("Your pet made a motivation boost for this goal.");
+    saveAndRender();
+
+}
+
+function buildMotivationSpeech() {
+    const goal = getMotivationGoal();
+    const mood = normalizeMotivationMood(state.motivation.mood);
+    const moodLine = getMotivationMoodLine(mood);
+    const firstStep = getSuggestedFirstStep(goal);
+    const voiceProfile = getPetVoiceProfile();
+    const sessionMinutes = Math.min(12, Math.max(5, Math.round(state.adaptiveProfile.recommendedMinutes / 3)));
+    const speech = [
+        voiceProfile.opener,
+        moodLine,
+        `Your goal: ${goal}.`,
+        `For the next ${sessionMinutes} minutes, ignore the giant version of the project and do this: ${firstStep}.`,
+        voiceProfile.promise
+    ].join(" ");
+
+    return {
+        speech,
+        searchUrl: buildMotivationSearchUrl(goal, mood)
+    };
+}
+
+function getMotivationGoal() {
+    const goal = (state.motivation.goal || "").trim();
+    return goal || "the project in front of you";
+}
+
+function getMotivationMoodLine(mood) {
+    const lines = {
+        stuck: "You do not need the whole answer yet; you need one honest next move.",
+        tired: "Low energy still counts. We are aiming for a small win, not a dramatic comeback.",
+        overwhelmed: "The big version can wait. Fold the work until it fits in your hands.",
+        avoidant: "Avoiding it made sense for a minute, but now we are making the first step too small to fear.",
+        deadline: "Pressure is loud, so we are going to be quieter and more specific than the pressure.",
+        reset: "A reset is not starting over. It is choosing the next clean action from right here."
+    };
+
+    return lines[mood] || lines.stuck;
+}
+
+function getSuggestedFirstStep(goal) {
+    const lowerGoal = goal.toLowerCase();
+    if (/\b(essay|write|paper|draft|paragraph|story)\b|application essay|college application/.test(lowerGoal)) {
+        return "write one rough sentence that is allowed to be messy";
+    }
+
+    if (/\b(code|app|website|bug|feature|project|repo)\b/.test(lowerGoal)) {
+        return "open the file or screen that matters most and fix one visible thing";
+    }
+
+    if (/(study|test|exam|quiz|class|homework)/.test(lowerGoal)) {
+        return "answer one question or summarize one small section";
+    }
+
+    if (/(clean|room|desk|organize)/.test(lowerGoal)) {
+        return "clear one tiny surface before touching anything else";
+    }
+
+    if (/(email|message|apply|application)/.test(lowerGoal)) {
+        return "write the first two lines and leave polishing for later";
+    }
+
+    return "set a tiny timer and touch the easiest piece of the work";
+}
+
+function getPetVoiceProfile() {
+    const profiles = {
+        dragon: {
+            label: "ember voice",
+            rate: 0.9,
+            pitch: 0.75,
+            opener: "In my ember voice: I am guarding the door, and perfection is not getting past me today.",
+            promise: "Give me the first spark, and I will keep the fire from going out.",
+            scale: [196, 246.94, 293.66, 392]
+        },
+        dog: {
+            label: "loyal voice",
+            rate: 1,
+            pitch: 1.08,
+            opener: "In my loyal voice: I am right here with you, tail up, no judgment.",
+            promise: "Do the next tiny thing and I will stay beside you for the next one too.",
+            scale: [220, 277.18, 329.63, 440]
+        },
+        cat: {
+            label: "cool voice",
+            rate: 0.92,
+            pitch: 0.95,
+            opener: "In my cool cat voice: we are not panicking, because panicking is deeply inefficient.",
+            promise: "Start casually, make progress anyway, and pretend it was your idea all along.",
+            scale: [174.61, 220, 261.63, 329.63]
+        },
+        chicken: {
+            label: "brave voice",
+            rate: 1.12,
+            pitch: 1.25,
+            opener: "In my brave chicken voice: small wings, big courage, immediate action.",
+            promise: "Peck at the task once, then once more, and suddenly the pile is smaller.",
+            scale: [261.63, 329.63, 392, 523.25]
+        },
+        phoenix: {
+            label: "comeback voice",
+            rate: 0.94,
+            pitch: 1.02,
+            opener: "In my comeback voice: ashes are not the end; they are just dramatic starting material.",
+            promise: "One clean action is enough to prove you are rising again.",
+            scale: [196, 261.63, 329.63, 493.88]
+        },
+        owl: {
+            label: "wise voice",
+            rate: 0.82,
+            pitch: 0.88,
+            opener: "In my quiet owl voice: look only at the branch in front of you.",
+            promise: "Begin with one clear move, and the next one will be easier to see.",
+            scale: [164.81, 220, 293.66, 329.63]
+        },
+        fox: {
+            label: "clever voice",
+            rate: 1.02,
+            pitch: 1,
+            opener: "In my clever fox voice: we are going to outsmart the task by making it smaller.",
+            promise: "Take the sneaky easy entrance, then keep your momentum before doubt notices.",
+            scale: [220, 261.63, 349.23, 440]
+        },
+        wolf: {
+            label: "steady voice",
+            rate: 0.9,
+            pitch: 0.82,
+            opener: "In my steady wolf voice: breathe, square up, and stay with the pack.",
+            promise: "You do not need to sprint. You need to keep moving long enough to trust yourself again.",
+            scale: [146.83, 196, 246.94, 293.66]
+        },
+        bunny: {
+            label: "gentle voice",
+            rate: 0.96,
+            pitch: 1.22,
+            opener: "In my gentle bunny voice: soft start, brave heart, tiny steps.",
+            promise: "Make it easy enough to begin, then let beginning do its quiet magic.",
+            scale: [261.63, 329.63, 392, 493.88]
+        },
+        turtle: {
+            label: "slow steady voice",
+            rate: 0.78,
+            pitch: 0.86,
+            opener: "In my slow steady voice: no rush, no drama, just the next step.",
+            promise: "Slow work is still work, and steady work becomes real before you notice.",
+            scale: [130.81, 174.61, 196, 261.63]
+        }
+    };
+
+    return profiles[state.settings.petAppearance] || profiles.dragon;
+}
+
+function buildMotivationSearchUrl(goal, mood) {
+    const moodLabel = {
+        stuck: "when stuck",
+        tired: "when tired",
+        overwhelmed: "when overwhelmed",
+        avoidant: "stop procrastinating",
+        deadline: "deadline focus",
+        reset: "reset motivation"
+    }[mood] || "focus motivation";
+    const query = `${goal} ${moodLabel} motivation visual ideas`;
+    return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+}
+
+function speakMotivation() {
+    if (!state.motivation.lastSpeech) {
+        generateMotivation();
+    }
+
+    if (!("speechSynthesis" in window)) {
+        updateOutput("This browser does not support reading the motivation out loud.");
+        render();
+        return;
+    }
+
+    const voiceProfile = getPetVoiceProfile();
+    const utterance = new SpeechSynthesisUtterance(state.motivation.lastSpeech);
+    utterance.rate = voiceProfile.rate;
+    utterance.pitch = voiceProfile.pitch;
+    utterance.volume = 0.95;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    updateOutput(`${getPetAppearance().emoji} is reading your motivation out loud.`);
+    render();
+}
+
+function openMotivationSearch() {
+    const goal = elements.motivationGoalInput.value.trim() || getMotivationGoal();
+    const mood = normalizeMotivationMood(elements.motivationMoodSelect.value);
+    const searchUrl = buildMotivationSearchUrl(goal, mood);
+    state.motivation.lastSearchUrl = searchUrl;
+    persistState();
+    window.open(searchUrl, "_blank", "noopener,noreferrer");
+}
+
+function openFocusSource() {
+    const sourceUrl = getFocusSourceUrl();
+    if (!sourceUrl) {
+        updateOutput("Choose a study source first.");
+        render();
+        return;
+    }
+
+    window.open(sourceUrl, "_blank", "noopener,noreferrer");
 }
 
 function recordAdaptiveEvent(type) {
@@ -708,24 +1120,32 @@ function updateAdaptiveProfile() {
     return insight;
 }
 
-function applyAdaptiveSessionPlan() {
+function applyAdaptiveSessionPlan({ allowIncrease = true } = {}) {
     const insight = updateAdaptiveProfile();
     const previousMinutes = state.sessionDuration;
+    const nextMinutes = !allowIncrease && insight.recommendedMinutes > previousMinutes
+        ? previousMinutes
+        : insight.recommendedMinutes;
 
     if (state.sessionState !== "running") {
-        state.sessionDuration = insight.recommendedMinutes;
+        state.sessionDuration = nextMinutes;
         state.timeLeft = state.sessionDuration * 60;
     }
 
-    if (insight.recommendedMinutes > previousMinutes) {
-        return `Adaptive Coach bumped the next session to ${insight.recommendedMinutes} minutes because ${insight.reason.toLowerCase()}`;
+    if (nextMinutes > previousMinutes) {
+        return `Adaptive Coach bumped the next session to ${nextMinutes} minutes because ${ensureFinalPunctuation(insight.reason.toLowerCase())}`;
     }
 
-    if (insight.recommendedMinutes < previousMinutes) {
-        return `Adaptive Coach eased the next session to ${insight.recommendedMinutes} minutes because ${insight.reason.toLowerCase()}`;
+    if (nextMinutes < previousMinutes) {
+        return `Adaptive Coach eased the next session to ${nextMinutes} minutes because ${ensureFinalPunctuation(insight.reason.toLowerCase())}`;
     }
 
-    return `Adaptive Coach kept the next session at ${insight.recommendedMinutes} minutes because ${insight.reason.toLowerCase()}`;
+    return `Adaptive Coach kept the next session at ${nextMinutes} minutes because ${ensureFinalPunctuation(insight.reason.toLowerCase())}`;
+}
+
+function ensureFinalPunctuation(text) {
+    const cleaned = String(text || "").trim();
+    return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
 }
 
 function getAdaptiveInsight() {
@@ -811,6 +1231,8 @@ function render() {
     renderSessionControls();
     renderSettings();
     renderFocusEnvironment();
+    renderMotivation();
+    renderParkingLot();
     syncFocusEnvironment();
 }
 
@@ -860,6 +1282,7 @@ function renderTimer() {
     const seconds = String(displaySeconds % 60).padStart(2, "0");
     const timeString = `${minutes}:${seconds}`;
     elements.timerDisplay.textContent = timeString;
+    elements.clearSystemTaskBtn.hidden = !state.systemTask || state.sessionState === "running";
 
     if (state.sessionState === "running") {
         document.title = `${timeString} — Friction`;
@@ -870,10 +1293,16 @@ function renderTimer() {
     }
 }
 
+function clearSystemTask() {
+    state.systemTask = "";
+    saveAndRender();
+}
+
 function renderPet() {
-    const petForm = getCurrentPetForm();
     const petAppearance = getPetAppearance();
     const currentStage = getPetStageFromLevel(state.petLevel);
+    const nextStage = getPetStageFromLevel(state.petLevel + 1);
+    const nextFormLabel = `${nextStage.label} ${petAppearance.emoji}`;
     const petMood = getPetMood();
     const petSketch = getPetSketchMarkup(state.settings.petAppearance, currentStage.key, petMood.key);
     elements.petAvatar.innerHTML = `
@@ -884,13 +1313,14 @@ function renderPet() {
         </div>
     `;
     elements.petAvatar.dataset.mood = petMood.key;
+    elements.petAvatar.dataset.pet = state.settings.petAppearance;
     elements.petInfo.textContent = String(state.petLevel);
     const petMoodLabel = petMood.isSad ? `${petMood.label} ` : "";
     elements.petLevelDisplay.textContent = `${petMoodLabel}${petAppearance.emoji} ${currentStage.label} Level ${state.petLevel}`;
     elements.petGoal.textContent = `${state.nextPetRewardThreshold} sessions`;
     elements.petSummary.textContent = petMood.isSad
-        ? `${petAppearance.emoji}: ${petMood.reason}. It shrank into a smaller sketch form, but ${petForm.name} can still grow from ${state.nextPetRewardThreshold} completed sessions with low distractions.`
-        : `${petAppearance.emoji}: ${petAppearance.summary} Current stage: ${currentStage.label}. ${petForm.name} form unlock energy comes from ${state.nextPetRewardThreshold} completed sessions with low distractions. A small sad version appears after 9 distractions or 4 failed sessions.`;
+        ? `${petAppearance.emoji}: ${petMood.reason}. It shrank into a smaller sketch form, but ${nextFormLabel} can still grow from ${state.nextPetRewardThreshold} completed sessions with low distractions.`
+        : `${petAppearance.emoji}: ${petAppearance.summary} Current stage: ${currentStage.label}. ${nextFormLabel} form unlock energy comes from ${state.nextPetRewardThreshold} completed sessions with low distractions. A small sad version appears after 9 distractions or 4 failed sessions.`;
     elements.petPortrait.dataset.pet = state.settings.petAppearance;
     elements.petPortrait.dataset.mood = petMood.key;
     elements.petSketch.innerHTML = petSketch;
@@ -933,13 +1363,18 @@ function renderSettings() {
     elements.paperTintInput.value = normalizeColorValue(state.settings.paperTint);
     elements.paperTintValue.textContent = normalizeColorValue(state.settings.paperTint);
     elements.shapeSelect.value = state.settings.backgroundShape;
-    elements.soundModeSelect.value = state.settings.soundMode;
+    elements.motionBackgroundToggle.checked = state.settings.motionBackground;
+    if (elements.soundModeSelect) {
+        elements.soundModeSelect.value = state.settings.soundMode;
+    }
     elements.hintsToggle.checked = state.settings.showHints;
     elements.petAppearanceSelect.value = state.settings.petAppearance;
 }
 
 function renderFocusEnvironment() {
     const descriptor = getCurrentEnvironmentDescriptor();
+    const canShowEmbed = descriptor.embedUrl !== "about:blank" && !focusEmbedFailed;
+    const needsMediaFallback = focusEmbedFailed || (descriptor.provider === "youtube" && descriptor.embedUrl === "about:blank");
     elements.natureTrackList.innerHTML = renderTrackOptions("nature");
     elements.noiseTrackList.innerHTML = renderTrackOptions("noise");
     elements.handpanTrackList.innerHTML = renderTrackOptions("handpan");
@@ -965,12 +1400,78 @@ function renderFocusEnvironment() {
     elements.focusMediaStage.dataset.shell = descriptor.shell || "empty";
     elements.focusMediaTitle.parentElement.dataset.shell = descriptor.shell || "empty";
     elements.focusMediaEmpty.textContent = descriptor.emptyMessage || "Choose a study source to load it here.";
-    elements.focusMediaEmpty.hidden = descriptor.embedUrl !== "about:blank";
-    elements.focusMediaFrame.hidden = descriptor.embedUrl === "about:blank";
+    elements.focusMediaEmpty.hidden = descriptor.embedUrl !== "about:blank" || needsMediaFallback;
+    elements.focusMediaFallback.hidden = !needsMediaFallback;
+    elements.focusMediaFrame.hidden = !canShowEmbed;
     elements.focusGeneratedVisual.hidden = true;
     elements.focusGeneratedChip.textContent = descriptor.generatedChip || "Built-in environment";
     elements.focusGeneratedTitle.textContent = descriptor.generatedTitle || descriptor.title;
     elements.focusGeneratedCaption.textContent = descriptor.generatedCaption || descriptor.caption;
+}
+
+function renderMotivation() {
+    const petAppearance = getPetAppearance();
+    const stage = getPetStageFromLevel(state.petLevel);
+    const petMood = getPetMood();
+    const voiceProfile = getPetVoiceProfile();
+    const searchUrl = buildMotivationSearchUrl(getMotivationGoal(), state.motivation.mood);
+
+    if (document.activeElement !== elements.motivationGoalInput) {
+        elements.motivationGoalInput.value = state.motivation.goal;
+    }
+    elements.motivationMoodSelect.value = normalizeMotivationMood(state.motivation.mood);
+    elements.motivationPetArt.innerHTML = getPetSketchMarkup(state.settings.petAppearance, stage.key, petMood.key);
+    elements.motivationPetArt.dataset.pet = state.settings.petAppearance;
+    elements.motivationPetArt.dataset.mood = petMood.key;
+    elements.motivationSpeaker.textContent = `${petAppearance.emoji} ${voiceProfile.label}`;
+    elements.motivationTitle.textContent = state.motivation.lastSpeech
+        ? `${petAppearance.emoji} says: start tiny, then keep moving.`
+        : "Your pet is waiting for your goal.";
+    elements.motivationSpeech.textContent = state.motivation.lastSpeech
+        || "Write the thing you are trying to work on, then let your pet turn it into a small push you can actually use.";
+    elements.motivationOnlineLink.href = searchUrl;
+    elements.motivationOnlineLink.hidden = !state.motivation.lastSpeech;
+    elements.playMotivationSongBtn.disabled = Boolean(state.motivation.songPlaying);
+    elements.stopMotivationSongBtn.disabled = !state.motivation.songPlaying;
+}
+
+function renderParkingLot() {
+    elements.parkingLotList.innerHTML = "";
+    elements.clearParkingLotBtn.disabled = state.parkingLot.length === 0;
+
+    if (!state.parkingLot.length) {
+        const emptyItem = document.createElement("li");
+        emptyItem.className = "parking-lot-empty";
+        emptyItem.textContent = "Nothing waiting for later yet.";
+        elements.parkingLotList.append(emptyItem);
+        return;
+    }
+
+    state.parkingLot.forEach((thought) => {
+        const item = document.createElement("li");
+        const copy = document.createElement("span");
+        copy.textContent = thought;
+        const actions = document.createElement("div");
+        actions.className = "parking-lot-item-actions";
+
+        const useButton = document.createElement("button");
+        useButton.type = "button";
+        useButton.className = "text-action";
+        useButton.dataset.parkingAction = "use";
+        useButton.dataset.parkingIndex = String(state.parkingLot.indexOf(thought));
+        useButton.textContent = "Use For Goal";
+
+        const dismissButton = document.createElement("button");
+        dismissButton.type = "button";
+        dismissButton.className = "text-action parking-dismiss";
+        dismissButton.dataset.parkingAction = "dismiss";
+        dismissButton.dataset.parkingIndex = String(state.parkingLot.indexOf(thought));
+        dismissButton.textContent = "Dismiss";
+
+        actions.append(useButton, dismissButton);
+        item.append(copy, actions);
+        elements.parkingLotList.append(item);
+    });
 }
 
 function getSessionStatusLabel() {
@@ -994,7 +1495,9 @@ function getTimerNote() {
         return "Timer finished. Record the result to update your streak and pet.";
     }
 
-    return "Start a focus block and let the clock run while you work.";
+    return state.systemTask
+        ? `System action: ${state.systemTask}`
+        : "Start a focus block and let the clock run while you work.";
 }
 
 function getWelcomeMessage() {
@@ -1017,18 +1520,13 @@ function getHeroPurpose() {
     return "Adaptive focus support with cleaner sessions, pet progression, and fewer surprises.";
 }
 
-function getCurrentPetForm() {
-    const index = Math.min(state.petLevel - 1, CONFIG.petForms.length - 1);
-    return CONFIG.petForms[index];
-}
-
 function getPetAppearance() {
     return CONFIG.petAppearances[state.settings.petAppearance] || CONFIG.petAppearances.dragon;
 }
 
 function getPetMood() {
-    const distractionTrigger = state.totalDistractionCount >= CONFIG.petSadDistractionThreshold;
-    const failureTrigger = state.totalFailedSessions >= CONFIG.petSadFailureThreshold;
+    const distractionTrigger = state.petStressDistractions >= CONFIG.petSadDistractionThreshold;
+    const failureTrigger = state.petStressFailures >= CONFIG.petSadFailureThreshold;
 
     if (!distractionTrigger && !failureTrigger) {
         return {
@@ -1040,8 +1538,8 @@ function getPetMood() {
     }
 
     const reason = failureTrigger
-        ? `Four failed sessions made your pet feel wobbly`
-        : `Nine distractions filled the distraction bar three times`;
+        ? `Four unrecovered failed sessions made your pet feel wobbly`
+        : `Nine unrecovered distractions filled the distraction bar three times`;
 
     return {
         key: "sad",
@@ -1074,7 +1572,7 @@ function renderPetLevelCards() {
     ].map((entry, index) => `
         <article class="level-card wobble-md ${Math.min(state.petLevel, 3) - 1 === index ? "is-current" : ""}">
             <div class="level-card-head">
-                <div class="level-sketch">${getPetSketchMarkup(state.settings.petAppearance, entry.key)}</div>
+                <div class="level-sketch" data-pet="${state.settings.petAppearance}">${getPetSketchMarkup(state.settings.petAppearance, entry.key)}</div>
                 <div>
                     <span class="mini-label">${entry.label}</span>
                     <strong>${entry.title}</strong>
@@ -1084,12 +1582,12 @@ function renderPetLevelCards() {
         </article>
     `).join("");
 
-    const sadDistractionsLeft = Math.max(CONFIG.petSadDistractionThreshold - state.totalDistractionCount, 0);
-    const sadFailuresLeft = Math.max(CONFIG.petSadFailureThreshold - state.totalFailedSessions, 0);
+    const sadDistractionsLeft = Math.max(CONFIG.petSadDistractionThreshold - state.petStressDistractions, 0);
+    const sadFailuresLeft = Math.max(CONFIG.petSadFailureThreshold - state.petStressFailures, 0);
     const moodCardMarkup = `
         <article class="level-card stress-form-card ${petMood.isSad ? "is-current" : "is-locked"} wobble-md">
             <div class="level-card-head">
-                <div class="level-sketch">${getPetSketchMarkup(state.settings.petAppearance, currentStage.key, "sad")}</div>
+                <div class="level-sketch" data-pet="${state.settings.petAppearance}">${getPetSketchMarkup(state.settings.petAppearance, currentStage.key, "sad")}</div>
                 <div>
                     <span class="mini-label">${petMood.isSad ? "Stress Form Active" : "Stress Form"}</span>
                     <strong>Small Sad ${petAppearance.emoji}</strong>
@@ -1111,7 +1609,7 @@ function renderTrackOptions(environmentKey) {
     }).join("");
 }
 
-function getPetSketchMarkup(petKey, stage = "baby", mood = "steady") {
+function getLegacyPetSketchMarkup(petKey, stage = "baby", mood = "steady") {
     const sketches = {
         dragon: `
             <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -1267,6 +1765,164 @@ function getSadPetSketchMarkup(sketchMarkup) {
         </svg>`;
 }
 
+function getPetSketchMarkup(petKey, stage = "baby", mood = "steady") {
+    const sketchMarkup = getStickerPetIconMarkup(petKey, stage);
+    return mood === "sad" ? getSadPetSketchMarkup(sketchMarkup) : sketchMarkup;
+}
+
+function getStickerPetIconMarkup(petKey, stage = "baby") {
+    const stageTransforms = {
+        baby: "translate(14 18) scale(0.82)",
+        teen: "translate(7 8) scale(0.93)",
+        adult: "translate(0 0) scale(1)"
+    };
+    const transform = stageTransforms[stage] || stageTransforms.baby;
+    const stageSpark = stage === "adult"
+        ? '<path class="pet-detail" d="M127 32 L133 20 L139 32" /><path class="pet-detail" d="M136 40 L150 38" />'
+        : stage === "teen"
+            ? '<path class="pet-detail" d="M131 31 L137 22 L142 32" />'
+            : "";
+    const collar = stage === "baby" ? "" : '<path class="pet-accent" d="M61 118 C75 127 99 127 115 118" />';
+    const icons = {
+        dragon: `
+            <path class="pet-accent" d="M46 108 C24 103 20 78 42 70 C55 66 66 78 68 96" />
+            <path class="pet-accent" d="M112 95 C140 88 149 111 127 124" />
+            <path class="pet-body" d="M38 105 C37 67 62 43 90 43 C120 43 137 66 134 98 C131 128 105 144 78 141 C54 139 39 126 38 105Z" />
+            <path class="pet-soft" d="M62 48 L50 19 L77 39" />
+            <path class="pet-soft" d="M105 48 L126 21 L116 52" />
+            <path class="pet-accent" d="M79 42 L88 23 L98 42" />
+            <path class="pet-accent" d="M91 43 L99 28 L108 45" />
+            <path class="pet-detail" d="M55 82 C63 74 75 72 84 79" />
+            <circle cx="68" cy="88" r="5" />
+            <circle cx="100" cy="88" r="5" />
+            <path class="pet-detail" d="M74 111 C84 119 99 119 109 109" />
+            ${stageSpark}
+        `,
+        dog: `
+            <path class="pet-body" d="M43 102 C43 68 63 43 84 43 C110 43 126 68 124 103 C122 130 103 145 79 143 C55 141 42 128 43 102Z" />
+            <path class="pet-accent" d="M64 57 C46 51 38 29 49 17 C65 25 73 39 73 56" />
+            <path class="pet-accent" d="M101 57 C119 51 126 29 115 17 C100 25 92 39 92 56" />
+            <ellipse class="pet-soft" cx="83" cy="105" rx="24" ry="17" />
+            <path class="pet-soft" d="M54 78 C63 68 75 67 82 76" />
+            <circle cx="68" cy="86" r="5" />
+            <circle cx="98" cy="86" r="5" />
+            <circle cx="83" cy="99" r="4" />
+            <path class="pet-detail" d="M72 114 C79 122 90 122 96 114" />
+            ${collar}
+        `,
+        cat: `
+            <path class="pet-body" d="M36 102 C40 64 62 38 82 38 C108 38 126 64 126 101 C126 126 104 142 80 142 C54 142 34 126 36 102Z" />
+            <path class="pet-soft" d="M58 45 L48 18 L74 38" />
+            <path class="pet-soft" d="M106 45 L118 18 L92 38" />
+            <path class="pet-accent" d="M61 69 C69 60 80 60 87 68" />
+            <path class="pet-accent" d="M104 69 C96 60 86 60 79 68" />
+            <circle cx="66" cy="86" r="5" />
+            <circle cx="96" cy="86" r="5" />
+            <path class="pet-detail" d="M74 104 L82 111 L90 104" />
+            <path class="pet-detail" d="M38 102 L65 99" />
+            <path class="pet-detail" d="M38 113 L64 111" />
+            <path class="pet-detail" d="M124 102 L99 99" />
+            <path class="pet-detail" d="M124 113 L100 111" />
+            ${collar}
+        `,
+        chicken: `
+            <path class="pet-body" d="M38 103 C39 64 62 38 90 39 C116 40 132 62 130 94 C128 124 105 141 78 139 C53 137 37 123 38 103Z" />
+            <path class="pet-accent" d="M70 38 C68 20 84 18 86 36" />
+            <path class="pet-accent" d="M84 36 C88 17 103 22 96 40" />
+            <path class="pet-accent" d="M104 42 C112 25 126 34 114 50" />
+            <path class="pet-accent" d="M106 95 L135 105 L108 116 Z" />
+            <path class="pet-soft" d="M54 107 C48 92 54 76 70 71" />
+            <path class="pet-detail" d="M75 139 L70 150" />
+            <path class="pet-detail" d="M91 139 L99 150" />
+            <circle cx="72" cy="84" r="5" />
+            <circle cx="98" cy="84" r="5" />
+            <path class="pet-detail" d="M68 112 C80 119 92 119 102 111" />
+            ${collar}
+        `,
+        phoenix: `
+            <path class="pet-soft" d="M59 97 C34 91 35 62 61 61 C74 61 82 75 82 91" />
+            <path class="pet-soft" d="M108 97 C134 91 132 62 107 61 C94 61 87 75 86 91" />
+            <path class="pet-body" d="M46 106 C50 68 70 45 90 45 C115 45 130 70 127 104 C124 130 103 145 78 142 C54 139 44 126 46 106Z" />
+            <path class="pet-accent" d="M68 48 C64 27 76 18 84 34 C88 18 104 16 105 38 C119 27 132 36 120 51" />
+            <path class="pet-accent" d="M75 138 C64 154 48 153 42 141" />
+            <path class="pet-accent" d="M91 140 C104 155 123 152 128 138" />
+            <circle cx="72" cy="86" r="5" />
+            <circle cx="98" cy="86" r="5" />
+            <path class="pet-detail" d="M76 111 C86 119 98 118 106 109" />
+        `,
+        owl: `
+            <path class="pet-body" d="M47 108 C47 68 63 43 82 43 C102 43 118 68 117 108 C117 129 102 143 82 143 C62 143 47 129 47 108Z" />
+            <path class="pet-accent" d="M57 49 L68 30 L80 49" />
+            <path class="pet-accent" d="M87 49 L99 30 L110 49" />
+            <circle class="pet-soft" cx="68" cy="84" r="16" />
+            <circle class="pet-soft" cx="96" cy="84" r="16" />
+            <circle cx="68" cy="84" r="5" />
+            <circle cx="96" cy="84" r="5" />
+            <path class="pet-detail" d="M78 108 L82 116 L87 108" />
+            <path class="pet-detail" d="M64 124 C75 132 91 132 102 124" />
+            ${stage === "adult" ? '<path class="pet-detail" d="M70 58 C78 52 88 52 96 58" />' : ""}
+        `,
+        fox: `
+            <path class="pet-accent" d="M120 107 C149 112 145 145 110 133" />
+            <path class="pet-body" d="M34 102 C42 62 62 38 82 38 C106 38 124 63 128 101 C131 125 105 141 80 142 C56 143 32 126 34 102Z" />
+            <path class="pet-accent" d="M58 46 L42 18 L76 38" />
+            <path class="pet-accent" d="M106 46 L124 20 L90 38" />
+            <path class="pet-soft" d="M61 112 C72 132 93 132 106 112 C92 121 75 121 61 112Z" />
+            <path class="pet-soft" d="M80 101 L91 101 L85 114 Z" />
+            <circle cx="66" cy="84" r="5" />
+            <circle cx="98" cy="84" r="5" />
+            <path class="pet-detail" d="M72 104 C82 113 94 113 104 104" />
+            ${collar}
+        `,
+        wolf: `
+            <path class="pet-body" d="M34 104 C40 62 62 36 82 36 C108 36 126 64 128 103 C130 128 106 143 80 143 C52 143 32 128 34 104Z" />
+            <path class="pet-accent" d="M57 44 L43 15 L75 38" />
+            <path class="pet-accent" d="M109 44 L125 15 L91 38" />
+            <path class="pet-accent" d="M48 69 C59 50 79 43 98 48" />
+            <path class="pet-soft" d="M64 115 C78 129 95 129 108 115" />
+            <path class="pet-soft" d="M79 101 L97 101 L88 115 Z" />
+            <circle cx="66" cy="86" r="5" />
+            <circle cx="98" cy="86" r="5" />
+            <path class="pet-detail" d="M72 106 L94 106" />
+            <path class="pet-detail" d="M76 118 C84 124 94 123 102 116" />
+            ${stage !== "baby" ? '<path class="pet-detail" d="M62 67 C76 58 94 58 108 67" />' : ""}
+        `,
+        bunny: `
+            <path class="pet-body" d="M42 104 C42 66 62 42 82 42 C107 42 121 67 121 103 C121 128 104 142 82 142 C58 142 42 128 42 104Z" />
+            <path class="pet-soft" d="M63 48 C54 9 82 7 82 42" />
+            <path class="pet-soft" d="M100 48 C109 9 134 12 108 44" />
+            <path class="pet-accent" d="M68 49 C64 23 77 20 78 44" />
+            <path class="pet-accent" d="M104 48 C111 24 123 24 110 45" />
+            <circle cx="68" cy="88" r="5" />
+            <circle cx="96" cy="88" r="5" />
+            <path class="pet-detail" d="M76 106 L82 113 L88 106" />
+            <path class="pet-detail" d="M70 122 C78 128 88 128 96 122" />
+            ${stage !== "baby" ? '<path class="pet-accent" d="M58 124 C50 134 36 130 40 118" />' : ""}
+        `,
+        turtle: `
+            <path class="pet-accent" d="M119 98 C141 94 146 116 127 123" />
+            <path class="pet-body" d="M36 102 C42 76 60 60 82 60 C104 60 122 76 128 102 C132 124 108 137 82 137 C56 137 32 124 36 102Z" />
+            <path class="pet-soft" d="M57 93 C68 77 90 75 107 93" />
+            <path class="pet-accent" d="M44 101 C24 96 22 116 38 122" />
+            <circle cx="68" cy="98" r="5" />
+            <circle cx="96" cy="98" r="5" />
+            <path class="pet-detail" d="M72 116 C82 123 92 123 102 116" />
+            <path class="pet-detail" d="M58 132 L48 146" />
+            <path class="pet-detail" d="M106 132 L116 146" />
+            <path class="pet-detail" d="M68 88 L78 103 L91 84 L103 103" />
+        `
+    };
+    const icon = icons[petKey] || icons.dragon;
+
+    return `
+        <svg class="pet-sketch-svg" viewBox="0 0 160 160" aria-hidden="true">
+            <path class="pet-sticker-shadow" d="M38 145 C58 154 108 154 130 144 C116 158 57 160 38 145Z" />
+            <g transform="${transform}">
+                ${icon}
+            </g>
+        </svg>`;
+}
+
 function getEnvironmentLabel(environmentKey) {
     const labels = {
         nature: "Nature",
@@ -1332,10 +1988,12 @@ function getCurrentEnvironmentDescriptor() {
                 provider: "youtube",
                 shell: isPlaylist ? (isMusic ? "ytmusic-playlist" : "youtube-playlist") : "youtube-video",
                 isGenerated: false,
-                embedUrl: isRadioStylePlaylist ? "about:blank" : buildCustomEmbedUrl(customLink),
+                embedUrl: isRadioStylePlaylist || !canEmbedWebMedia() ? "about:blank" : buildCustomEmbedUrl(customLink),
                 emptyMessage: isRadioStylePlaylist
                     ? "This YouTube Music radio playlist cannot be embedded here. Use Open Source for the full playlist."
-                    : "Choose a study source to load it here.",
+                    : canEmbedWebMedia()
+                        ? "Choose a study source to load it here."
+                        : "Run Friction through a local server to use the embedded player.",
                 canPause: !isRadioStylePlaylist,
                 canAdjustVolume: true
             };
@@ -1356,8 +2014,10 @@ function getCurrentEnvironmentDescriptor() {
                 provider: "spotify",
                 shell: spotifyData.type === "playlist" ? "spotify-playlist" : "spotify-track",
                 isGenerated: false,
-                embedUrl: buildCustomEmbedUrl(customLink),
-                emptyMessage: "Choose a study source to load it here.",
+                embedUrl: canEmbedWebMedia() ? buildCustomEmbedUrl(customLink) : "about:blank",
+                emptyMessage: canEmbedWebMedia()
+                    ? "Choose a study source to load it here."
+                    : "Run Friction through a local server to use the embedded player.",
                 canPause: false,
                 canAdjustVolume: false
             };
@@ -1370,12 +2030,13 @@ function getCurrentEnvironmentDescriptor() {
     const typeLabel = youtubeData?.app === "ytmusic"
         ? (youtubeData?.type === "playlist" ? "YouTube Music playlist" : "YouTube Music video")
         : (youtubeData?.type === "playlist" ? "YouTube playlist" : "YouTube video");
+    const canEmbed = canEmbedWebMedia();
     const builtInDescriptor = {
         environmentLabel: getEnvironmentLabel(environmentKey),
         trackLabel: track?.label || "No track selected",
         title: track?.label || "No track selected",
         caption: track
-            ? `${track.label} is loaded from your PDF music list inside the study box.`
+            ? `${track.label} is loaded from the built-in study library.`
             : "Pick a built-in source to load it in the study box.",
         typeLabel,
         selectedTypeLabel: typeLabel,
@@ -1384,15 +2045,21 @@ function getCurrentEnvironmentDescriptor() {
             ? "ytmusic-playlist"
             : (youtubeData?.type === "playlist" ? "youtube-playlist" : "youtube-video"),
         isGenerated: false,
-        embedUrl: track ? buildCustomEmbedUrl(track.url) : "about:blank",
+        embedUrl: track && canEmbed ? buildCustomEmbedUrl(track.url) : "about:blank",
         emptyMessage: track
-            ? "YouTube media is blocked in local file mode. Open Friction through localhost to use videos and playlists here."
+            ? (canEmbed
+                ? "Choose a study source to load it here."
+                : "Run Friction through a local server to use the embedded player. Use Open on YouTube for this source.")
             : "Choose a study source to load it here.",
         canPause: Boolean(track),
         canAdjustVolume: Boolean(track)
     };
 
     return builtInDescriptor;
+}
+
+function canEmbedWebMedia() {
+    return window.location.protocol === "http:" || window.location.protocol === "https:";
 }
 
 function getSavedCustomSourceLabel() {
@@ -1455,7 +2122,8 @@ function hasSupabaseConfig() {
 
 async function initializeSupabaseAuth() {
     const config = getSavedSupabaseConfig();
-    isOfflineMode = canUseStorage && window.localStorage.getItem(OFFLINE_MODE_STORAGE_KEY) === "1";
+    const localPreview = window.FrictionAccess?.isLocalPreview?.() !== false;
+    isOfflineMode = localPreview && canUseStorage && window.localStorage.getItem(OFFLINE_MODE_STORAGE_KEY) === "1";
 
     if (isOfflineMode) {
         updateAuthView();
@@ -1485,20 +2153,39 @@ async function initializeSupabaseAuth() {
     }
 
     currentUser = data.session?.user || null;
+    if (!localPreview && currentUser && window.FrictionAccess?.isAllowedEmail && !window.FrictionAccess.isAllowedEmail(currentUser.email)) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        window.FrictionAccess?.forgetOwnerAccess?.();
+        window.FrictionAccess?.goToConstruction?.();
+        return;
+    }
+
     if (!currentUser) {
         redirectToLogin();
         return;
     }
 
     if (currentUser) {
+        window.FrictionAccess?.rememberOwnerAccess?.(currentUser.email);
         await loadSupabaseState();
         await syncSupabaseState();
     }
 
     supabaseClient.auth.onAuthStateChange(async (_event, session) => {
         currentUser = session?.user || null;
+        if (!localPreview && currentUser && window.FrictionAccess?.isAllowedEmail && !window.FrictionAccess.isAllowedEmail(currentUser.email)) {
+            await supabaseClient.auth.signOut();
+            currentUser = null;
+            isOfflineMode = false;
+            window.FrictionAccess?.forgetOwnerAccess?.();
+            window.FrictionAccess?.goToConstruction?.();
+            return;
+        }
+
         if (currentUser) {
             isOfflineMode = false;
+            window.FrictionAccess?.rememberOwnerAccess?.(currentUser.email);
             await loadSupabaseState();
             await syncSupabaseState();
         } else if (!isOfflineMode) {
@@ -1533,11 +2220,12 @@ async function signOutUser() {
     if (canUseStorage) {
         window.localStorage.removeItem(OFFLINE_MODE_STORAGE_KEY);
     }
+    window.FrictionAccess?.forgetOwnerAccess?.();
     redirectToLogin();
 }
 
 function redirectToLogin() {
-    window.location.href = "login.html";
+    window.location.href = window.FrictionAccess?.isLocalPreview?.() === false ? "login.html?owner=1" : "login.html";
 }
 
 async function loadSupabaseState() {
@@ -1694,8 +2382,23 @@ function updateClockDisplay() {
 }
 
 function updateTheme(themeName) {
-    state.settings.theme = ["classic", "blueprint", "sunset", "forest", "midnight", "citrus"].includes(themeName) ? themeName : "classic";
+    state.settings.theme = ["classic", "blueprint", "sunset", "forest", "midnight", "citrus", "white", "black"].includes(themeName) ? themeName : "classic";
+    state.settings.paperTint = getThemeDefaultTint(state.settings.theme);
     saveAndRender();
+}
+
+function getThemeDefaultTint(themeName) {
+    const tints = {
+        classic: "#fdfbf7",
+        blueprint: "#eef4fb",
+        sunset: "#fff3e8",
+        forest: "#eef7ef",
+        midnight: "#edf1fb",
+        citrus: "#fff8ea",
+        white: "#ffffff",
+        black: "#eef2ff"
+    };
+    return tints[themeName] || tints.classic;
 }
 
 function updatePaperTint(colorValue) {
@@ -1707,6 +2410,11 @@ function updateBackgroundShape(shapeName) {
     state.settings.backgroundShape = ["doodles", "orbit", "confetti", "calm", "minimal"].includes(shapeName)
         ? shapeName
         : "doodles";
+    saveAndRender();
+}
+
+function updateMotionBackgroundPreference(isEnabled) {
+    state.settings.motionBackground = Boolean(isEnabled);
     saveAndRender();
 }
 
@@ -1838,7 +2546,7 @@ function removeCustomMediaLink() {
 }
 
 function applyThemeSettings() {
-    document.body.classList.remove("theme-blueprint", "theme-sunset", "theme-forest", "theme-midnight", "theme-citrus");
+    document.body.classList.remove("theme-blueprint", "theme-sunset", "theme-forest", "theme-midnight", "theme-citrus", "theme-white", "theme-black");
     document.body.classList.remove("shapes-doodles", "shapes-orbit", "shapes-confetti", "shapes-calm", "shapes-minimal");
 
     if (state.settings.theme === "blueprint") {
@@ -1851,15 +2559,132 @@ function applyThemeSettings() {
         document.body.classList.add("theme-midnight");
     } else if (state.settings.theme === "citrus") {
         document.body.classList.add("theme-citrus");
+    } else if (state.settings.theme === "white") {
+        document.body.classList.add("theme-white");
+    } else if (state.settings.theme === "black") {
+        document.body.classList.add("theme-black");
     }
 
     document.body.classList.add(`shapes-${state.settings.backgroundShape}`);
+    document.body.classList.toggle("sketch-motion-paused", !state.settings.motionBackground);
 
     document.body.style.setProperty("--paper-custom", normalizeColorValue(state.settings.paperTint));
+    syncSketchBackground();
 }
 
 function normalizeColorValue(colorValue) {
     return /^#[0-9a-fA-F]{6}$/.test(colorValue) ? colorValue : "#fdfbf7";
+}
+
+function playMotivationSong() {
+    const context = getOrCreateAudioContext();
+    if (!context) {
+        updateOutput("Motivation music is not supported in this browser.");
+        render();
+        return;
+    }
+
+    stopMotivationSong({ silent: true });
+    const voiceProfile = getPetVoiceProfile();
+    const masterGain = context.createGain();
+    masterGain.gain.value = 0.07;
+    masterGain.connect(context.destination);
+    motivationSongNodes.push(masterGain);
+    motivationStepIndex = 0;
+
+    playMotivationSongStep(context, masterGain, voiceProfile.scale);
+    motivationSongTimer = window.setInterval(() => {
+        playMotivationSongStep(context, masterGain, voiceProfile.scale);
+    }, 430);
+
+    state.motivation.songPlaying = true;
+    updateOutput("Motivation song playing behind your pet's speech.");
+    persistState();
+    renderMotivation();
+}
+
+function playMotivationSongStep(context, destination, scale) {
+    const now = context.currentTime;
+    const note = scale[motivationStepIndex % scale.length] * (motivationStepIndex % 8 === 7 ? 2 : 1);
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = motivationStepIndex % 3 === 0 ? "triangle" : "sine";
+    oscillator.frequency.value = note;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.45, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+    oscillator.connect(gain);
+    gain.connect(destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.34);
+    oscillator.onended = () => {
+        try {
+            oscillator.disconnect();
+            gain.disconnect();
+        } catch (error) {
+            console.warn("Unable to clean up motivation note.", error);
+        }
+    };
+    motivationSongNodes.push(oscillator, gain);
+
+    if (motivationStepIndex % 4 === 0) {
+        playMotivationKick(context, destination);
+    }
+
+    motivationStepIndex += 1;
+}
+
+function playMotivationKick(context, destination) {
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(82, now);
+    oscillator.frequency.exponentialRampToValueAtTime(42, now + 0.18);
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    oscillator.connect(gain);
+    gain.connect(destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.22);
+    oscillator.onended = () => {
+        try {
+            oscillator.disconnect();
+            gain.disconnect();
+        } catch (error) {
+            console.warn("Unable to clean up motivation kick.", error);
+        }
+    };
+    motivationSongNodes.push(oscillator, gain);
+}
+
+function stopMotivationSong({ silent = false } = {}) {
+    if (motivationSongTimer !== null) {
+        window.clearInterval(motivationSongTimer);
+        motivationSongTimer = null;
+    }
+
+    motivationSongNodes.forEach((node) => {
+        try {
+            if (node.stop) {
+                node.stop();
+            }
+            if (node.disconnect) {
+                node.disconnect();
+            }
+        } catch (error) {
+            console.warn("Unable to stop motivation sound node.", error);
+        }
+    });
+    motivationSongNodes = [];
+    motivationStepIndex = 0;
+    state.motivation.songPlaying = false;
+    persistState();
+
+    if (!silent) {
+        updateOutput("Motivation song stopped.");
+        renderMotivation();
+    }
 }
 
 function getOrCreateAudioContext() {
@@ -1906,8 +2731,10 @@ function syncSoundMode() {
 function syncFocusEnvironment(forceReload = false) {
     const descriptor = getCurrentEnvironmentDescriptor();
     const embedUrl = descriptor.embedUrl;
+    const needsMediaFallback = focusEmbedFailed || (descriptor.provider === "youtube" && embedUrl === "about:blank");
 
     if (forceReload || lastFocusEmbedUrl !== embedUrl) {
+        focusEmbedFailed = false;
         elements.focusMediaFrame.src = embedUrl;
         lastFocusEmbedUrl = embedUrl;
     }
@@ -1915,8 +2742,9 @@ function syncFocusEnvironment(forceReload = false) {
     elements.focusMediaFrame.dataset.provider = descriptor.provider;
     elements.focusMediaStage.dataset.shell = descriptor.shell || "empty";
     elements.focusMediaEmpty.textContent = descriptor.emptyMessage || "Choose a study source to load it here.";
-    elements.focusMediaFrame.hidden = embedUrl === "about:blank";
-    elements.focusMediaEmpty.hidden = embedUrl !== "about:blank";
+    elements.focusMediaFrame.hidden = embedUrl === "about:blank" || focusEmbedFailed;
+    elements.focusMediaEmpty.hidden = embedUrl !== "about:blank" || needsMediaFallback;
+    elements.focusMediaFallback.hidden = !needsMediaFallback;
     elements.focusGeneratedVisual.hidden = true;
 
     if (embedUrl !== "about:blank" && lastFocusEmbedUrl === embedUrl) {
@@ -1935,6 +2763,275 @@ function handleFocusMediaFrameLoad() {
     applyEmbeddedVolume();
     if (state.focusEnvironment.isPlaying) {
         requestEmbeddedPlay();
+    }
+}
+
+function getFocusSourceUrl() {
+    if (state.focusEnvironment.selected === "custom") {
+        return state.focusEnvironment.customLink.trim();
+    }
+
+    return getSelectedBuiltInTrack()?.url || "";
+}
+
+function initializeSketchBackground() {
+    const canvas = elements.sketchFlowCanvas;
+    if (!canvas || !("getContext" in canvas)) {
+        return;
+    }
+
+    sketchFlowContext = canvas.getContext("2d", { alpha: true });
+    if (!sketchFlowContext) {
+        return;
+    }
+
+    window.addEventListener("resize", resizeSketchBackground, { passive: true });
+    document.addEventListener("visibilitychange", syncSketchBackground);
+    window.addEventListener("mousemove", handleDotFieldMouseMove, { passive: true });
+    window.addEventListener("mouseleave", clearDotFieldMouse, { passive: true });
+    resizeSketchBackground();
+}
+
+function resizeSketchBackground() {
+    const canvas = elements.sketchFlowCanvas;
+    if (!canvas || !sketchFlowContext) {
+        return;
+    }
+
+    sketchFlowPixelRatio = Math.min(window.devicePixelRatio || 1, 1.25);
+    sketchFlowWidth = Math.max(1, window.innerWidth);
+    sketchFlowHeight = Math.max(1, window.innerHeight);
+    canvas.width = Math.round(sketchFlowWidth * sketchFlowPixelRatio);
+    canvas.height = Math.round(sketchFlowHeight * sketchFlowPixelRatio);
+    canvas.style.width = `${sketchFlowWidth}px`;
+    canvas.style.height = `${sketchFlowHeight}px`;
+    buildDotField(sketchFlowWidth, sketchFlowHeight);
+    syncSketchBackground();
+}
+
+function buildDotField(width, height) {
+    const dotRadius = 1.5;
+    const dotSpacing = 14;
+    const step = dotRadius + dotSpacing;
+    const cols = Math.max(1, Math.floor(width / step));
+    const rows = Math.max(1, Math.floor(height / step));
+    const padX = (width % step) / 2;
+    const padY = (height % step) / 2;
+    const dots = new Array(cols * rows);
+    let index = 0;
+
+    for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+            const ax = padX + col * step + step / 2;
+            const ay = padY + row * step + step / 2;
+            dots[index] = { ax, ay, sx: ax, sy: ay };
+            index += 1;
+        }
+    }
+
+    dotFieldDots = dots;
+}
+
+function handleDotFieldMouseMove(event) {
+    dotFieldMouse.x = event.clientX;
+    dotFieldMouse.y = event.clientY;
+}
+
+function clearDotFieldMouse() {
+    dotFieldMouse.x = -9999;
+    dotFieldMouse.y = -9999;
+}
+
+function updateDotFieldMouseSpeed() {
+    const mouse = dotFieldMouse;
+    const dx = mouse.prevX - mouse.x;
+    const dy = mouse.prevY - mouse.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    mouse.speed += (distance - mouse.speed) * 0.5;
+    if (mouse.speed < 0.001) {
+        mouse.speed = 0;
+    }
+    mouse.prevX = mouse.x;
+    mouse.prevY = mouse.y;
+}
+
+function parseCssColor(colorValue) {
+    if (!colorValue) {
+        return null;
+    }
+
+    const color = colorValue.trim();
+    const hexMatch = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hexMatch) {
+        const value = hexMatch[1];
+        const expanded = value.length === 3
+            ? value.split("").map((char) => char + char).join("")
+            : value;
+        return [
+            Number.parseInt(expanded.slice(0, 2), 16),
+            Number.parseInt(expanded.slice(2, 4), 16),
+            Number.parseInt(expanded.slice(4, 6), 16)
+        ];
+    }
+
+    const rgbMatch = color.match(/rgba?\(\s*([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)/i);
+    if (!rgbMatch) {
+        return null;
+    }
+
+    return [
+        Math.round(Number(rgbMatch[1])),
+        Math.round(Number(rgbMatch[2])),
+        Math.round(Number(rgbMatch[3]))
+    ];
+}
+
+function getRelativeLuminance([red, green, blue]) {
+    const [r, g, b] = [red, green, blue].map((value) => {
+        const channel = Math.min(255, Math.max(0, value)) / 255;
+        return channel <= 0.03928
+            ? channel / 12.92
+            : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function getColorContrast(firstColor, secondColor) {
+    const firstLum = getRelativeLuminance(firstColor);
+    const secondLum = getRelativeLuminance(secondColor);
+    const light = Math.max(firstLum, secondLum);
+    const dark = Math.min(firstLum, secondLum);
+    return (light + 0.05) / (dark + 0.05);
+}
+
+function rgba(color, alpha) {
+    return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`;
+}
+
+function refreshDotFieldPalette() {
+    const styles = window.getComputedStyle(document.body);
+    const background = parseCssColor(styles.backgroundColor)
+        || parseCssColor(styles.getPropertyValue("--paper-custom"))
+        || [253, 251, 247];
+    const candidates = [
+        parseCssColor(styles.getPropertyValue("--blue")),
+        parseCssColor(styles.getPropertyValue("--ink")),
+        parseCssColor(styles.getPropertyValue("--accent")),
+        [255, 255, 255],
+        [28, 32, 38]
+    ].filter(Boolean);
+    const bestCandidate = candidates.reduce((best, candidate) => {
+        return getColorContrast(candidate, background) > getColorContrast(best, background) ? candidate : best;
+    }, candidates[0]);
+    const backgroundIsDark = getRelativeLuminance(background) < 0.56;
+    const dotColor = backgroundIsDark || getColorContrast(bestCandidate, background) < 2.2
+        ? [255, 255, 255]
+        : bestCandidate;
+    const glowColor = backgroundIsDark ? [255, 255, 255] : dotColor;
+
+    dotFieldPalette = {
+        dotStart: rgba(dotColor, backgroundIsDark ? 0.92 : 0.46),
+        dotEnd: rgba(dotColor, backgroundIsDark ? 0.52 : 0.18),
+        glowStart: rgba(glowColor, backgroundIsDark ? 0.24 : 0.14),
+        glowEnd: rgba(glowColor, 0)
+    };
+}
+
+function syncSketchBackground() {
+    if (!sketchFlowContext) {
+        return;
+    }
+
+    if (sketchFlowFrame) {
+        window.cancelAnimationFrame(sketchFlowFrame);
+        sketchFlowFrame = null;
+    }
+
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    refreshDotFieldPalette();
+    drawSketchBackground(window.performance.now());
+    if (!state.settings.motionBackground || reducedMotion || document.hidden) {
+        return;
+    }
+
+    sketchFlowLastFrameAt = 0;
+    sketchFlowFrame = window.requestAnimationFrame(animateSketchBackground);
+}
+
+function animateSketchBackground(time) {
+    if (!state.settings.motionBackground || document.hidden) {
+        sketchFlowFrame = null;
+        return;
+    }
+
+    if (time - sketchFlowLastFrameAt >= 84) {
+        updateDotFieldMouseSpeed();
+        drawSketchBackground(time);
+        sketchFlowLastFrameAt = time;
+    }
+
+    sketchFlowFrame = window.requestAnimationFrame(animateSketchBackground);
+}
+
+function drawSketchBackground(time) {
+    if (!sketchFlowContext || !sketchFlowWidth || !sketchFlowHeight) {
+        return;
+    }
+
+    const context = sketchFlowContext;
+    const width = sketchFlowWidth;
+    const height = sketchFlowHeight;
+    const mouse = dotFieldMouse;
+    const cursorRadius = 500;
+    const bulgeStrength = 67;
+    const dotRadius = 1.5;
+    const mouseDistanceX = mouse.x - mouse.prevX;
+    const mouseDistanceY = mouse.y - mouse.prevY;
+    const hasPointer = mouse.x > -1000;
+    const targetEngagement = hasPointer ? Math.min(mouse.speed / 5, 1) : 0;
+    dotFieldEngagement += (targetEngagement - dotFieldEngagement) * 0.08;
+
+    context.setTransform(sketchFlowPixelRatio, 0, 0, sketchFlowPixelRatio, 0, 0);
+    context.clearRect(0, 0, width, height);
+
+    const gradient = context.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, dotFieldPalette.dotStart);
+    gradient.addColorStop(1, dotFieldPalette.dotEnd);
+    context.fillStyle = gradient;
+    context.beginPath();
+
+    for (const dot of dotFieldDots) {
+        const dx = mouse.x - dot.ax;
+        const dy = mouse.y - dot.ay;
+        const distanceSquared = dx * dx + dy * dy;
+
+        if (hasPointer && distanceSquared < cursorRadius * cursorRadius && dotFieldEngagement > 0.01) {
+            const distance = Math.sqrt(distanceSquared);
+            const falloff = 1 - distance / cursorRadius;
+            const push = falloff * falloff * bulgeStrength * dotFieldEngagement;
+            const angle = Math.atan2(dy, dx);
+            dot.sx += (dot.ax - Math.cos(angle) * push - dot.sx) * 0.15;
+            dot.sy += (dot.ay - Math.sin(angle) * push - dot.sy) * 0.15;
+        } else {
+            dot.sx += (dot.ax - dot.sx) * 0.1;
+            dot.sy += (dot.ay - dot.sy) * 0.1;
+        }
+
+        context.moveTo(dot.sx + dotRadius, dot.sy);
+        context.arc(dot.sx, dot.sy, dotRadius, 0, Math.PI * 2);
+    }
+
+    context.fill();
+
+    if (hasPointer && dotFieldEngagement > 0.01) {
+        const glow = context.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 160);
+        glow.addColorStop(0, dotFieldPalette.glowStart);
+        glow.addColorStop(1, dotFieldPalette.glowEnd);
+        context.fillStyle = glow;
+        context.beginPath();
+        context.arc(mouse.x, mouse.y, 160, 0, Math.PI * 2);
+        context.fill();
     }
 }
 
@@ -2281,7 +3378,7 @@ function buildCustomEmbedUrl(rawUrl) {
     }
 
     const trimmed = rawUrl.trim();
-    const youtubeEmbedBase = "https://www.youtube-nocookie.com/embed";
+    const youtubeEmbedBase = "https://www.youtube.com/embed";
 
     const youtubeMatch = extractYouTubeData(trimmed);
     if (youtubeMatch) {
@@ -2292,7 +3389,7 @@ function buildCustomEmbedUrl(rawUrl) {
             if (youtubeMatch.videoId) {
                 return `${youtubeEmbedBase}/${youtubeMatch.videoId}?enablejsapi=1&controls=1&rel=0&loop=1&list=${youtubeMatch.value}&playlist=${youtubeMatch.videoId}${originParam}`;
             }
-            return `${youtubeEmbedBase}/videoseries?list=${youtubeMatch.value}&enablejsapi=1&loop=1&controls=1&rel=0${originParam}`;
+            return `${youtubeEmbedBase}?listType=playlist&list=${youtubeMatch.value}&enablejsapi=1&loop=1&controls=1&rel=0${originParam}`;
         }
 
         const playlistParam = youtubeMatch.playlist ? `&list=${youtubeMatch.playlist}` : "";
