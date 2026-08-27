@@ -249,6 +249,7 @@ let dotFieldPalette = {
 let supabaseClient = null;
 let currentUser = null;
 let isOfflineMode = false;
+let isVercelOwnerMode = false;
 let serverTimeOffsetMs = 0;
 let clockTimer = null;
 let syncTimer = null;
@@ -2125,6 +2126,13 @@ async function initializeSupabaseAuth() {
     const localPreview = window.FrictionAccess?.isLocalPreview?.() !== false;
     isOfflineMode = localPreview && canUseStorage && window.localStorage.getItem(OFFLINE_MODE_STORAGE_KEY) === "1";
 
+    if (!localPreview && window.FrictionAccess?.hasServerOwnerAccess?.()) {
+        isVercelOwnerMode = true;
+        updateAuthView();
+        render();
+        return;
+    }
+
     if (isOfflineMode) {
         updateAuthView();
         render();
@@ -2153,39 +2161,20 @@ async function initializeSupabaseAuth() {
     }
 
     currentUser = data.session?.user || null;
-    if (!localPreview && currentUser && window.FrictionAccess?.isAllowedEmail && !window.FrictionAccess.isAllowedEmail(currentUser.email)) {
-        await supabaseClient.auth.signOut();
-        currentUser = null;
-        window.FrictionAccess?.forgetOwnerAccess?.();
-        window.FrictionAccess?.goToConstruction?.();
-        return;
-    }
-
     if (!currentUser) {
         redirectToLogin();
         return;
     }
 
     if (currentUser) {
-        window.FrictionAccess?.rememberOwnerAccess?.(currentUser.email);
         await loadSupabaseState();
         await syncSupabaseState();
     }
 
     supabaseClient.auth.onAuthStateChange(async (_event, session) => {
         currentUser = session?.user || null;
-        if (!localPreview && currentUser && window.FrictionAccess?.isAllowedEmail && !window.FrictionAccess.isAllowedEmail(currentUser.email)) {
-            await supabaseClient.auth.signOut();
-            currentUser = null;
-            isOfflineMode = false;
-            window.FrictionAccess?.forgetOwnerAccess?.();
-            window.FrictionAccess?.goToConstruction?.();
-            return;
-        }
-
         if (currentUser) {
             isOfflineMode = false;
-            window.FrictionAccess?.rememberOwnerAccess?.(currentUser.email);
             await loadSupabaseState();
             await syncSupabaseState();
         } else if (!isOfflineMode) {
@@ -2201,31 +2190,38 @@ async function initializeSupabaseAuth() {
 }
 
 function updateAuthView() {
-    const isUnlocked = Boolean(currentUser || isOfflineMode);
+    const isUnlocked = Boolean(currentUser || isOfflineMode || isVercelOwnerMode);
     elements.appShell.hidden = !isUnlocked;
-    elements.signOutBtn.disabled = !currentUser;
-    elements.authUserLabel.textContent = currentUser?.email || (isOfflineMode ? "Offline Mode" : "Not signed in");
+    elements.signOutBtn.disabled = !currentUser && !isVercelOwnerMode;
+    const owner = window.FrictionAccess?.getServerOwner?.();
+    elements.authUserLabel.textContent = currentUser?.email || (isVercelOwnerMode ? owner?.name || owner?.email || "Vercel Owner" : (isOfflineMode ? "Offline Mode" : "Not signed in"));
     elements.syncStatusLabel.textContent = currentUser
         ? "Supabase sync is active for this account."
+        : isVercelOwnerMode
+            ? "Vercel owner access is active. Local browser progress is private to this device."
         : "Supabase sync is waiting for login.";
 }
 
 async function signOutUser() {
+    if (isVercelOwnerMode) {
+        await window.FrictionAccess?.signOutOwner?.();
+    }
+
     if (supabaseClient) {
         await supabaseClient.auth.signOut();
     }
 
     currentUser = null;
     isOfflineMode = false;
+    isVercelOwnerMode = false;
     if (canUseStorage) {
         window.localStorage.removeItem(OFFLINE_MODE_STORAGE_KEY);
     }
-    window.FrictionAccess?.forgetOwnerAccess?.();
     redirectToLogin();
 }
 
 function redirectToLogin() {
-    window.location.href = window.FrictionAccess?.isLocalPreview?.() === false ? "login.html?owner=1" : "login.html";
+    window.location.href = window.FrictionAccess?.isLocalPreview?.() === false ? "/index.html" : "login.html";
 }
 
 async function loadSupabaseState() {

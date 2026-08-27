@@ -29,12 +29,19 @@ function bindLoginEvents() {
 
 async function initializeLoginPage() {
     const config = window.FRICTION_SUPABASE_CONFIG || {};
-    configureHostedLogin();
+    if (!window.FrictionAccess?.isLocalPreview()) {
+        configureHostedLogin();
+        const owner = await window.FrictionAccess?.fetchOwnerSession?.();
+        if (owner) {
+            goToApp();
+        } else {
+            updateAuthStatus("Friction is under construction. Owner access checks your Vercel account.");
+        }
+        return;
+    }
 
     if (!config.url || !config.anonKey) {
-        updateAuthStatus(window.FrictionAccess?.isLocalPreview()
-            ? "Friction's login database is not available right now. Try Offline Mode or contact the site owner."
-            : "Friction is under construction right now.");
+        updateAuthStatus("Friction's login database is not available right now. Try Offline Mode or contact the site owner.");
         return;
     }
 
@@ -50,30 +57,29 @@ async function initializeLoginPage() {
         return;
     }
 
-    if (data.session?.user && isAllowedOwnerEmail(data.session.user.email)) {
-        window.FrictionAccess?.rememberOwnerAccess(data.session.user.email);
+    if (data.session?.user) {
         goToApp();
-    } else if (data.session?.user) {
-        await supabaseClient.auth.signOut();
-        window.FrictionAccess?.forgetOwnerAccess();
-        updateAuthStatus("Friction is private right now. This email does not have access yet.");
     } else {
-        updateAuthStatus(window.FrictionAccess?.isLocalPreview()
-            ? "Sign in or create an account to get started."
-            : "Friction is under construction. Owner sign-in is available for testing.");
+        updateAuthStatus("Sign in or create an account to get started.");
     }
 }
 
 function configureHostedLogin() {
-    if (window.FrictionAccess?.isLocalPreview()) {
-        return;
-    }
-
+    elements.authNameInput.disabled = true;
+    elements.authEmailInput.disabled = true;
+    elements.authPasswordInput.disabled = true;
+    elements.signInBtn.textContent = "Owner Sign In";
+    elements.signUpBtn.textContent = "Back";
     elements.offlineModeBtn.disabled = true;
     elements.offlineModeBtn.title = "Offline Mode is only available while testing locally.";
 }
 
 async function signInUser() {
+    if (!window.FrictionAccess?.isLocalPreview()) {
+        window.location.href = "/api/auth/start";
+        return;
+    }
+
     if (authRequestInFlight) {
         return;
     }
@@ -90,11 +96,6 @@ async function signInUser() {
         return;
     }
 
-    if (!isAllowedOwnerEmail(email)) {
-        updateAuthStatus("Friction is private right now. This email does not have access yet.");
-        return;
-    }
-
     setAuthLoading(true, "Checking your login...");
     try {
         const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -104,7 +105,6 @@ async function signInUser() {
         }
 
         window.localStorage.removeItem(OFFLINE_MODE_STORAGE_KEY);
-        window.FrictionAccess?.rememberOwnerAccess(email);
         updateAuthStatus("Signed in. Opening your desk...");
         goToApp();
     } finally {
@@ -113,6 +113,11 @@ async function signInUser() {
 }
 
 async function signUpUser() {
+    if (!window.FrictionAccess?.isLocalPreview()) {
+        window.location.href = "/index.html";
+        return;
+    }
+
     if (authRequestInFlight) {
         return;
     }
@@ -127,11 +132,6 @@ async function signUpUser() {
     const displayName = elements.authNameInput.value.trim();
     if (!email || !password) {
         updateAuthStatus("Enter an email and password to create your account.");
-        return;
-    }
-
-    if (!isAllowedOwnerEmail(email)) {
-        updateAuthStatus("Friction is private right now. Account creation is only open to approved testers.");
         return;
     }
 
@@ -160,7 +160,6 @@ async function signUpUser() {
             return;
         }
 
-        window.FrictionAccess?.rememberOwnerAccess(email);
         updateAuthStatus("Account created. Opening your desk...");
         goToApp();
     } finally {
@@ -176,10 +175,6 @@ function enterOfflineMode() {
 
     window.localStorage.setItem(OFFLINE_MODE_STORAGE_KEY, "1");
     goToApp();
-}
-
-function isAllowedOwnerEmail(email) {
-    return window.FrictionAccess?.isLocalPreview() || window.FrictionAccess?.isAllowedEmail(email);
 }
 
 function updateAuthStatus(message) {

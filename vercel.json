@@ -1,0 +1,68 @@
+{
+    "functions": {
+        "api/private-file.js": {
+            "includeFiles": "{friction_html.html,frictionJS.js,system-builder.html,system-builder.js,system-builder.css,access-control.js,supabaseConfig.js,supabase_schema.sql}"
+        }
+    },
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                },
+                {
+                    "key": "X-Frame-Options",
+                    "value": "DENY"
+                },
+                {
+                    "key": "Referrer-Policy",
+                    "value": "same-origin"
+                },
+                {
+                    "key": "Permissions-Policy",
+                    "value": "camera=(), microphone=(), geolocation=(), payment=()"
+                },
+                {
+                    "key": "Content-Security-Policy",
+                    "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com; connect-src 'self' https://api.vercel.com https://*.supabase.co https://worldtimeapi.org; media-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+                }
+            ]
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/friction_html.html",
+            "destination": "/api/private-file?file=friction_html.html"
+        },
+        {
+            "source": "/frictionJS.js",
+            "destination": "/api/private-file?file=frictionJS.js"
+        },
+        {
+            "source": "/system-builder.html",
+            "destination": "/api/private-file?file=system-builder.html"
+        },
+        {
+            "source": "/system-builder.js",
+            "destination": "/api/private-file?file=system-builder.js"
+        },
+        {
+            "source": "/system-builder.css",
+            "destination": "/api/private-file?file=system-builder.css"
+        },
+        {
+            "source": "/access-control.js",
+            "destination": "/api/private-file?file=access-control.js"
+        },
+        {
+            "source": "/supabaseConfig.js",
+            "destination": "/api/private-file?file=supabaseConfig.js"
+        },
+        {
+            "source": "/supabase_schema.sql",
+            "destination": "/api/private-file?file=supabase_schema.sql"
+        }
+    ]
+}
