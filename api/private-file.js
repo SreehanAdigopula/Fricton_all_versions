@@ -3,22 +3,22 @@ const path = require("node:path");
 const { getOwnerSession, redirect, secureHeaders } = require("./_auth");
 
 const PRIVATE_FILES = new Map([
-    ["friction_html.html", "text/html; charset=utf-8"],
-    ["frictionJS.js", "application/javascript; charset=utf-8"],
-    ["system-builder.html", "text/html; charset=utf-8"],
-    ["system-builder.js", "application/javascript; charset=utf-8"],
-    ["system-builder.css", "text/css; charset=utf-8"],
-    ["access-control.js", "application/javascript; charset=utf-8"],
-    ["supabaseConfig.js", "application/javascript; charset=utf-8"],
-    ["supabase_schema.sql", "text/plain; charset=utf-8"]
+    ["friction_html.html", { contentType: "text/html; charset=utf-8", path: path.join(process.cwd(), "friction_html.html") }],
+    ["frictionJS.js", { contentType: "application/javascript; charset=utf-8", path: path.join(process.cwd(), "frictionJS.js") }],
+    ["system-builder.html", { contentType: "text/html; charset=utf-8", path: path.join(process.cwd(), "system-builder.html") }],
+    ["system-builder.js", { contentType: "application/javascript; charset=utf-8", path: path.join(process.cwd(), "system-builder.js") }],
+    ["system-builder.css", { contentType: "text/css; charset=utf-8", path: path.join(process.cwd(), "system-builder.css") }],
+    ["access-control.js", { contentType: "application/javascript; charset=utf-8", path: path.join(process.cwd(), "access-control.js") }],
+    ["supabaseConfig.js", { contentType: "application/javascript; charset=utf-8", path: path.join(process.cwd(), "supabaseConfig.js") }],
+    ["supabase_schema.sql", { contentType: "text/plain; charset=utf-8", path: path.join(process.cwd(), "supabase_schema.sql") }]
 ]);
 
 module.exports = async function servePrivateFile(req, res) {
     const requestUrl = new URL(req.url, "https://friction.local");
     const file = requestUrl.searchParams.get("file");
-    const contentType = PRIVATE_FILES.get(file);
+    const entry = PRIVATE_FILES.get(file);
 
-    if (!contentType) {
+    if (!entry) {
         res.writeHead(404, secureHeaders({ "Content-Type": "text/plain; charset=utf-8" }));
         res.end("Not found");
         return;
@@ -34,10 +34,9 @@ module.exports = async function servePrivateFile(req, res) {
         return;
     }
 
-    const fullPath = path.join(process.cwd(), file);
-    const body = fs.readFileSync(fullPath);
+    const body = fs.readFileSync(entry.path);
     res.writeHead(200, secureHeaders({
-        "Content-Type": contentType,
+        "Content-Type": entry.contentType,
         "Cache-Control": "private, no-store"
     }));
     res.end(body);

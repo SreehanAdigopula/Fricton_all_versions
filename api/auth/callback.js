@@ -18,6 +18,7 @@ module.exports = async function vercelAuthCallback(req, res) {
     const error = requestUrl.searchParams.get("error");
     const cookies = parseCookies(req);
     const storedState = cookies[`${OAUTH_COOKIE_PREFIX}state`];
+    const storedNonce = cookies[`${OAUTH_COOKIE_PREFIX}nonce`];
     const verifier = cookies[`${OAUTH_COOKIE_PREFIX}verifier`];
 
     if (error) {
@@ -30,6 +31,7 @@ module.exports = async function vercelAuthCallback(req, res) {
 
     try {
         const tokenData = await exchangeCodeForToken(code, verifier, getOrigin(req));
+        validateIdToken(tokenData.id_token, storedNonce);
         const user = await fetchUserInfo(tokenData.access_token);
         if (!user.email_verified || String(user.email || "").trim().toLowerCase() !== getOwnerEmail()) {
             res.setHeader("Set-Cookie", clearedOAuthCookies());
@@ -81,6 +83,36 @@ async function fetchUserInfo(accessToken) {
     }
 
     return response.json();
+}
+
+function validateIdToken(idToken, expectedNonce) {
+    if (!idToken || !expectedNonce) {
+        throw new Error("Missing ID token or nonce");
+    }
+
+    const [, encodedPayload] = String(idToken).split(".");
+    if (!encodedPayload) {
+        throw new Error("Invalid ID token");
+    }
+
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+    const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+
+    if (payload.iss !== "https://vercel.com") {
+        throw new Error("Unexpected ID token issuer");
+    }
+
+    if (!audience.includes(getClientId())) {
+        throw new Error("Unexpected ID token audience");
+    }
+
+    if (payload.nonce !== expectedNonce) {
+        throw new Error("Unexpected ID token nonce");
+    }
+
+    if (!payload.exp || payload.exp * 1000 < Date.now()) {
+        throw new Error("Expired ID token");
+    }
 }
 
 function clearedOAuthCookies() {

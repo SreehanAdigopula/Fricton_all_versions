@@ -31,38 +31,45 @@
             ]
         }
     ],
-    "rewrites": [
+    "routes": [
         {
-            "source": "/friction_html.html",
-            "destination": "/api/private-file?file=friction_html.html"
+            "src": "/friction_html\\.html",
+            "dest": "/api/private-file?file=friction_html.html"
         },
         {
-            "source": "/frictionJS.js",
-            "destination": "/api/private-file?file=frictionJS.js"
+            "src": "/frictionJS\\.js",
+            "dest": "/api/private-file?file=frictionJS.js"
         },
         {
-            "source": "/system-builder.html",
-            "destination": "/api/private-file?file=system-builder.html"
+            "src": "/system-builder\\.html",
+            "dest": "/api/private-file?file=system-builder.html"
         },
         {
-            "source": "/system-builder.js",
-            "destination": "/api/private-file?file=system-builder.js"
+            "src": "/system-builder\\.js",
+            "dest": "/api/private-file?file=system-builder.js"
         },
         {
-            "source": "/system-builder.css",
-            "destination": "/api/private-file?file=system-builder.css"
+            "src": "/system-builder\\.css",
+            "dest": "/api/private-file?file=system-builder.css"
         },
         {
-            "source": "/access-control.js",
-            "destination": "/api/private-file?file=access-control.js"
+            "src": "/access-control\\.js",
+            "dest": "/api/private-file?file=access-control.js"
         },
         {
-            "source": "/supabaseConfig.js",
-            "destination": "/api/private-file?file=supabaseConfig.js"
+            "src": "/supabaseConfig\\.js",
+            "dest": "/api/private-file?file=supabaseConfig.js"
         },
         {
-            "source": "/supabase_schema.sql",
-            "destination": "/api/private-file?file=supabase_schema.sql"
+            "src": "/supabase_schema\\.sql",
+            "dest": "/api/private-file?file=supabase_schema.sql"
+        },
+        {
+            "src": "/login\\.html",
+            "dest": "/api/auth/start"
+        },
+        {
+            "handle": "filesystem"
         }
     ]
 }
