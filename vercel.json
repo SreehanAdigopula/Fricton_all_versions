@@ -17,40 +17,24 @@
             "continue": true
         },
         {
-            "src": "/friction_html\\.html",
-            "dest": "/api/private-file?file=friction_html.html"
+            "src": "/(friction_html|system-builder|login|app-rules|policies)\\.html",
+            "dest": "/index.html"
         },
         {
-            "src": "/frictionJS\\.js",
-            "dest": "/api/private-file?file=frictionJS.js"
-        },
-        {
-            "src": "/system-builder\\.html",
-            "dest": "/api/private-file?file=system-builder.html"
-        },
-        {
-            "src": "/system-builder\\.js",
-            "dest": "/api/private-file?file=system-builder.js"
+            "src": "/(frictionJS|system-builder|access-control|supabaseConfig|loginJS)\\.js",
+            "status": 404
         },
         {
             "src": "/system-builder\\.css",
-            "dest": "/api/private-file?file=system-builder.css"
-        },
-        {
-            "src": "/access-control\\.js",
-            "dest": "/api/private-file?file=access-control.js"
-        },
-        {
-            "src": "/supabaseConfig\\.js",
-            "dest": "/api/private-file?file=supabaseConfig.js"
+            "status": 404
         },
         {
             "src": "/supabase_schema\\.sql",
-            "dest": "/api/private-file?file=supabase_schema.sql"
+            "status": 404
         },
         {
-            "src": "/login\\.html",
-            "dest": "/api/auth/start"
+            "src": "/api/auth/(.*)",
+            "dest": "/index.html"
         },
         {
             "handle": "filesystem"
