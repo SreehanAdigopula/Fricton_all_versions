@@ -1,6 +1,4 @@
 const STORAGE_KEY = "friction-v1-state";
-const OFFLINE_MODE_STORAGE_KEY = "friction-offline-mode";
-
 const CONFIG = {
     defaultSessionMinutes: 30,
     minimumSessionMinutes: 10,
@@ -246,22 +244,12 @@ let dotFieldPalette = {
     glowStart: "rgba(45, 93, 161, 0.12)",
     glowEnd: "rgba(45, 93, 161, 0)"
 };
-let supabaseClient = null;
-let currentUser = null;
-let isOfflineMode = false;
-let isVercelOwnerMode = false;
 let serverTimeOffsetMs = 0;
 let clockTimer = null;
-let syncTimer = null;
 
 initializeApp();
 
 async function initializeApp() {
-    const canOpenHostedPage = await window.FrictionAccess?.guardHostedPage?.();
-    if (canOpenHostedPage === false) {
-        return;
-    }
-
     initializeSketchBackground();
     bindEvents();
     elements.petSketch.className = "pet-sketch";
@@ -276,7 +264,7 @@ async function initializeApp() {
     }
     syncFocusEnvironment();
     initializeClock();
-    initializeSupabaseAuth();
+    initializeLocalStorageMode();
 }
 
 function bindEvents() {
@@ -317,7 +305,7 @@ function bindEvents() {
         renderMotivation();
         elements.motivationOnlineLink.href = buildMotivationSearchUrl(getMotivationGoal(), state.motivation.mood);
         persistState();
-        scheduleSupabaseSync();
+        scheduleLocalSave();
     });
     elements.motivationMoodSelect.addEventListener("change", (event) => {
         state.motivation.mood = normalizeMotivationMood(event.target.value);
@@ -657,7 +645,7 @@ function completeSession() {
     recordAdaptiveEvent("completed");
     const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: !earnedCleanReward });
     updateOutput(`${petMessage || sessionMessage} ${adaptiveMessage}`);
-    recordSupabaseSession(sessionSnapshot);
+    recordLocalSession(sessionSnapshot);
     saveAndRender();
 }
 
@@ -731,7 +719,7 @@ function failSession() {
     recordAdaptiveEvent("failed");
     const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: false });
     updateOutput(`${sessionMessage} ${adaptiveMessage}`);
-    recordSupabaseSession(sessionSnapshot);
+    recordLocalSession(sessionSnapshot);
     saveAndRender();
 }
 
@@ -752,6 +740,8 @@ function finalizeSessionBase() {
     state.sessionState = "idle";
     state.timerStartedAt = null;
     state.timerEndsAt = null;
+    state.currentDistractionCount = 0;
+    state.currentBreakCount = 0;
     state.timeLeft = state.sessionDuration * 60;
 }
 
@@ -2089,7 +2079,7 @@ function updateOutput(message) {
 function saveAndRender() {
     persistState();
     render();
-    scheduleSupabaseSync();
+    scheduleLocalSave();
 }
 
 function detectStorageAvailability() {
@@ -2108,225 +2098,37 @@ function showStorageWarning() {
     elements.storageToast.hidden = false;
 }
 
-function getSavedSupabaseConfig() {
-    const fileConfig = window.FRICTION_SUPABASE_CONFIG || {};
-    return {
-        url: fileConfig.url || "",
-        anonKey: fileConfig.anonKey || ""
-    };
-}
-
-function hasSupabaseConfig() {
-    const config = getSavedSupabaseConfig();
-    return Boolean(config.url && config.anonKey);
-}
-
-async function initializeSupabaseAuth() {
-    const config = getSavedSupabaseConfig();
-    const localPreview = window.FrictionAccess?.isLocalPreview?.() !== false;
-    isOfflineMode = localPreview && canUseStorage && window.localStorage.getItem(OFFLINE_MODE_STORAGE_KEY) === "1";
-
-    if (!localPreview && window.FrictionAccess?.hasServerOwnerAccess?.()) {
-        isVercelOwnerMode = true;
-        updateAuthView();
-        render();
-        return;
-    }
-
-    if (isOfflineMode) {
-        updateAuthView();
-        render();
-        return;
-    }
-
-    if (!hasSupabaseConfig()) {
-        updateAuthView();
-        elements.syncStatusLabel.textContent = "Friction's login database is not available right now. Offline Mode still works.";
-        return;
-    }
-
-    if (!window.supabase?.createClient) {
-        updateAuthView();
-        elements.syncStatusLabel.textContent = "The login system did not load. Check your connection and sign in again.";
-        return;
-    }
-
-    supabaseClient = window.supabase.createClient(config.url, config.anonKey);
-
-    const { data, error } = await supabaseClient.auth.getSession();
-    if (error) {
-        updateAuthView();
-        elements.syncStatusLabel.textContent = error.message;
-        return;
-    }
-
-    currentUser = data.session?.user || null;
-    if (!currentUser) {
-        redirectToLogin();
-        return;
-    }
-
-    if (currentUser) {
-        await loadSupabaseState();
-        await syncSupabaseState();
-    }
-
-    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
-        currentUser = session?.user || null;
-        if (currentUser) {
-            isOfflineMode = false;
-            await loadSupabaseState();
-            await syncSupabaseState();
-        } else if (!isOfflineMode) {
-            redirectToLogin();
-            return;
-        }
-        updateAuthView();
-        render();
-    });
-
-    updateAuthView();
+function initializeLocalStorageMode() {
+    elements.appShell.hidden = false;
+    elements.signOutBtn.disabled = !canUseStorage;
+    elements.authUserLabel.textContent = canUseStorage ? "This Browser" : "Temporary Tab";
+    elements.syncStatusLabel.textContent = canUseStorage
+        ? "Progress saves privately in this browser. No login needed."
+        : "Local saving is blocked, so progress may disappear when this tab closes.";
     render();
 }
 
-function updateAuthView() {
-    const isUnlocked = Boolean(currentUser || isOfflineMode || isVercelOwnerMode);
-    elements.appShell.hidden = !isUnlocked;
-    elements.signOutBtn.disabled = !currentUser && !isVercelOwnerMode;
-    const owner = window.FrictionAccess?.getServerOwner?.();
-    elements.authUserLabel.textContent = currentUser?.email || (isVercelOwnerMode ? owner?.name || owner?.email || "Vercel Owner" : (isOfflineMode ? "Offline Mode" : "Not signed in"));
-    elements.syncStatusLabel.textContent = currentUser
-        ? "Supabase sync is active for this account."
-        : isVercelOwnerMode
-            ? "Vercel owner access is active. Local browser progress is private to this device."
-        : "Supabase sync is waiting for login.";
+function scheduleLocalSave() {
+    // Kept as a no-op so older event handlers can keep using saveAndRender().
+}
+
+async function recordLocalSession() {
+    // Session history is already included in the local app state snapshot.
 }
 
 async function signOutUser() {
-    if (isVercelOwnerMode) {
-        await window.FrictionAccess?.signOutOwner?.();
-    }
-
-    if (supabaseClient) {
-        await supabaseClient.auth.signOut();
-    }
-
-    currentUser = null;
-    isOfflineMode = false;
-    isVercelOwnerMode = false;
-    if (canUseStorage) {
-        window.localStorage.removeItem(OFFLINE_MODE_STORAGE_KEY);
-    }
-    redirectToLogin();
-}
-
-function redirectToLogin() {
-    window.location.href = window.FrictionAccess?.isLocalPreview?.() === false ? "/index.html" : "login.html";
-}
-
-async function loadSupabaseState() {
-    if (!supabaseClient || !currentUser) {
+    if (!canUseStorage) {
+        showStorageWarning();
         return;
     }
 
-    const { data, error } = await supabaseClient
-        .from("user_app_stats")
-        .select("app_state")
-        .eq("user_id", currentUser.id)
-        .maybeSingle();
-
-    if (error && error.code !== "PGRST116") {
-        elements.syncStatusLabel.textContent = `Supabase load issue: ${error.message}`;
+    const shouldReset = window.confirm("Reset this browser's Friction progress and settings?");
+    if (!shouldReset) {
         return;
     }
 
-    if (data?.app_state) {
-        state = sanitizeState({
-            ...state,
-            ...data.app_state,
-            activeTab: state.activeTab
-        });
-        persistState();
-    }
-}
-
-function scheduleSupabaseSync() {
-    if (!supabaseClient || !currentUser) {
-        return;
-    }
-
-    window.clearTimeout(syncTimer);
-    syncTimer = window.setTimeout(() => {
-        syncSupabaseState();
-    }, 650);
-}
-
-async function syncSupabaseState() {
-    if (!supabaseClient || !currentUser) {
-        return;
-    }
-
-    const displayName = currentUser.user_metadata?.display_name || "";
-    const profilePayload = {
-        user_id: currentUser.id,
-        display_name: displayName,
-        email: currentUser.email,
-        theme: state.settings.theme,
-        paper_tint: state.settings.paperTint,
-        background_shape: state.settings.backgroundShape,
-        pet_appearance: state.settings.petAppearance,
-        updated_at: new Date().toISOString()
-    };
-
-    const statsPayload = {
-        user_id: currentUser.id,
-        session_duration: state.sessionDuration,
-        completed_count: state.totalCompletedSessions,
-        failed_count: state.totalFailedSessions,
-        distraction_count: state.totalDistractionCount,
-        break_count: state.totalBreakCount,
-        weekly_completed: state.weeklyCompleted,
-        weekly_distraction_total: state.weeklyDistractionTotal,
-        weekly_session_count: state.weeklySessionCount,
-        success_streak: state.successStreak,
-        fail_streak: state.failStreak,
-        pet_level: state.petLevel,
-        next_pet_reward_threshold: state.nextPetRewardThreshold,
-        app_state: state,
-        updated_at: new Date().toISOString()
-    };
-
-    const { error: profileError } = await supabaseClient.from("user_profiles").upsert(profilePayload);
-    const { error: statsError } = await supabaseClient.from("user_app_stats").upsert(statsPayload);
-    const syncError = profileError || statsError;
-
-    if (syncError) {
-        elements.syncStatusLabel.textContent = `Sync issue: ${syncError.message}`;
-    } else {
-        elements.syncStatusLabel.textContent = `Synced ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-    }
-}
-
-async function recordSupabaseSession(sessionSnapshot) {
-    if (!supabaseClient || !currentUser) {
-        return;
-    }
-
-    const payload = {
-        user_id: currentUser.id,
-        result: sessionSnapshot.result,
-        duration_minutes: sessionSnapshot.durationMinutes,
-        distractions: sessionSnapshot.distractions,
-        breaks: sessionSnapshot.breaks,
-        started_at: sessionSnapshot.startedAt,
-        ended_at: new Date().toISOString(),
-        session_state: sessionSnapshot
-    };
-
-    const { error } = await supabaseClient.from("focus_sessions").insert(payload);
-    if (error) {
-        elements.syncStatusLabel.textContent = `Session sync issue: ${error.message}`;
-    }
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
 }
 
 function getSessionSnapshot(result) {

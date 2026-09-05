@@ -16,12 +16,12 @@
             <div class="hero-copy">
                 <p class="scribble-label">Friction Desk Notes</p>
                 <h1>Policies</h1>
-                <p class="hero-subtitle">Clear notes about data, accounts, media links, and third-party services inside Friction.</p>
+                <p class="hero-subtitle">Clear notes about browser storage, media links, and third-party services inside Friction.</p>
             </div>
             <aside class="hero-note wobble-md rotate-right">
                 <span class="tape tape-top"></span>
                 <p class="mini-label">Friendly Version</p>
-                <p class="note-copy">Plain-language notes for how this student prototype handles accounts, data, and media.</p>
+                <p class="note-copy">Plain-language notes for how this student prototype handles local progress and media.</p>
             </aside>
         </section>
 
@@ -29,20 +29,20 @@
             <article class="board-card wobble-lg rotate-left">
                 <p class="scribble-label">Account & Data Policy</p>
                 <ul class="policy-list">
-                    <li><strong>Saved App Data:</strong> Friction may save your sessions, distractions, breaks, completions, pet progress, themes, settings, and media choices.</li>
-                    <li><strong>Offline Mode:</strong> Offline progress stays in this browser's local storage and may not transfer to other devices.</li>
-                    <li><strong>Supabase Sync:</strong> When signed in, Friction syncs app progress to Friction's Supabase database for your user account.</li>
-                    <li><strong>Minimal Data:</strong> The app stores the data it needs to run the focus experience.</li>
+                    <li><strong>Saved App Data:</strong> Friction saves sessions, distractions, breaks, completions, pet progress, themes, settings, and media choices in this browser.</li>
+                    <li><strong>Local Only:</strong> Progress does not require an account and does not sync to another device.</li>
+                    <li><strong>No App Database:</strong> Friction is not sending focus progress to a hosted app database right now.</li>
+                    <li><strong>Minimal Data:</strong> The app stores only what it needs to run the focus experience on this device.</li>
                 </ul>
             </article>
 
             <article class="board-card sticky-card wobble-lg rotate-right">
-                <p class="scribble-label">Login Policy</p>
+                <p class="scribble-label">Storage Policy</p>
                 <ul class="policy-list">
-                    <li><strong>One App Database:</strong> Users sign in with an email and password. They do not need to create or connect their own Supabase project.</li>
-                    <li><strong>Account Storage:</strong> Friction stores each signed-in user's profile, session totals, focus history, settings, and pet progress under that user's account.</li>
-                    <li><strong>User-Owned Access:</strong> Each signed-in user is intended to read and update only their own focus data.</li>
-                    <li><strong>Fallback:</strong> If Supabase is unavailable, Offline Mode lets the app keep working locally.</li>
+                    <li><strong>No Login:</strong> Users can open the focus app without creating an account.</li>
+                    <li><strong>Browser Storage:</strong> Friction uses local browser storage for progress, settings, pet state, and saved study links.</li>
+                    <li><strong>Device Bound:</strong> Progress stays with the browser that created it unless a future export or sync feature is added.</li>
+                    <li><strong>Reset Control:</strong> The Settings page can reset local Friction progress for this browser.</li>
                 </ul>
             </article>
 
@@ -50,7 +50,7 @@
                 <p class="scribble-label">Music & Media Policy</p>
                 <ul class="policy-list">
                     <li><strong>Focus Environment:</strong> Only one built-in or custom study source should be active at a time.</li>
-                    <li><strong>Custom Links:</strong> You can save YouTube, YouTube Music, or Spotify study media links locally.</li>
+                    <li><strong>Custom Links:</strong> You can save YouTube, YouTube Music, or Spotify study media links in this browser.</li>
                     <li><strong>Third-Party Limits:</strong> YouTube and Spotify may block embeds, require sign-in, show previews, or change playback behavior.</li>
                     <li><strong>Appropriate Use:</strong> Custom media should be safe, study-friendly, and not used to harass or mislead others.</li>
                 </ul>
@@ -61,8 +61,8 @@
                 <ul class="policy-list">
                     <li><strong>No Selling Data:</strong> Friction does not sell focus data or personal progress information.</li>
                     <li><strong>Current Time:</strong> The app may use an online time API, and falls back to the device clock if the API fails.</li>
-                    <li><strong>Browser Storage:</strong> Clearing browser data may remove offline progress and saved settings.</li>
-                    <li><strong>Future Controls:</strong> Export, delete, and reset account data controls are planned for a future version.</li>
+                    <li><strong>Browser Storage:</strong> Clearing browser data may remove progress and saved settings.</li>
+                    <li><strong>Future Controls:</strong> Export and optional sync controls may be added in a future version.</li>
                 </ul>
             </article>
         </section>

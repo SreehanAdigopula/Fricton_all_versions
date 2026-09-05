@@ -23,7 +23,7 @@ const spellingCorrections = {
     "definately": "definitely", "seperate": "separate", "enviroment": "environment", "enviornment": "environment",
     "wrok": "work", "wroking": "working", "proejct": "project", "projcet": "project", "maotivtion": "motivation",
     "movtivation": "motivation", "movtivstion": "motivation", "plana": "plan", "paln": "plan",
-    "studdy": "study", "exersice": "exercise", "excersise": "exercise", "assignemnt": "assignment",
+    "studdy": "study", "algerba": "algebra", "algerbra": "algebra", "exersice": "exercise", "excersise": "exercise", "assignemnt": "assignment",
     "assigment": "assignment", "homeowrk": "homework", "homwork": "homework", "reserach": "research",
     "writting": "writing", "tomorow": "tomorrow", "tommorow": "tomorrow", "responsiblities": "responsibilities",
     "distractons": "distractions", "consistant": "consistent", "consistancy": "consistency", "sucess": "success",
@@ -58,11 +58,6 @@ const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 initializeCompanionApp();
 
 async function initializeCompanionApp() {
-    const canOpenHostedPage = await window.FrictionAccess?.guardHostedPage?.();
-    if (canOpenHostedPage === false) {
-        return;
-    }
-
     const obstacleChoices = $("#obstacleChoices");
     obstacleChoices.innerHTML = obstacles.map((item, index) => `<label><input type="checkbox" name="obstacles" value="${escapeHtml(item)}"><span>${escapeHtml(item)}</span></label>`).join("");
 
@@ -522,10 +517,15 @@ function planDiagnosis(data) {
 }
 function buildRhythm(data, actions) {
     const time = Number(data.weeklyHours) || 1;
-    const sessions = Math.max(1, Math.min(actions.length || 3, Math.ceil(time / 1.5)));
-    const minutes = Math.max(15, Math.round((time * 60) / sessions / 5) * 5);
+    const totalMinutes = Math.max(15, time * 60);
+    const preferredSessionMinutes = data.deadlineType === "fixed" ? 50 : 45;
+    const sessions = Math.max(1, Math.ceil(totalMinutes / preferredSessionMinutes));
+    const minutes = Math.max(15, Math.min(60, Math.round((totalMinutes / sessions) / 5) * 5));
     const days = data.days || "your best available days";
-    const trigger = data.trigger ? ` after ${data.trigger}` : "";
+    const rawTrigger = String(data.trigger || "").trim();
+    const trigger = rawTrigger
+        ? (/^(after|before|when|at|on)\b/i.test(rawTrigger) ? ` ${rawTrigger}` : ` after ${rawTrigger}`)
+        : "";
     const place = data.place ? ` at ${data.place}` : " in one repeatable work spot";
     const energy = data.energyTime ? ` Your best energy window is ${data.energyTime.toLowerCase()}.` : "";
     const review = data.reviewDay ? ` Review and adjust on ${data.reviewDay}.` : "";

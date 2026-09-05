@@ -1,9 +1,4 @@
 {
-    "functions": {
-        "api/private-file.js": {
-            "includeFiles": "{friction_html.html,frictionJS.js,system-builder.html,system-builder.js,system-builder.css,access-control.js,supabaseConfig.js,supabase_schema.sql}"
-        }
-    },
     "routes": [
         {
             "src": "/(.*)",
@@ -12,16 +7,28 @@
                 "X-Frame-Options": "DENY",
                 "Referrer-Policy": "same-origin",
                 "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
-                "Content-Security-Policy": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com; connect-src 'self' https://api.vercel.com https://*.supabase.co https://worldtimeapi.org; media-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+                "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com; connect-src 'self' https://worldtimeapi.org; media-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
             },
             "continue": true
         },
         {
-            "src": "/(friction_html|system-builder|login|app-rules|policies)\\.html",
-            "dest": "/index.html"
+            "src": "/",
+            "dest": "/friction_html.html"
         },
         {
-            "src": "/(frictionJS|system-builder|access-control|supabaseConfig|loginJS)\\.js",
+            "src": "/index\\.html",
+            "dest": "/friction_html.html"
+        },
+        {
+            "src": "/login\\.html",
+            "dest": "/friction_html.html"
+        },
+        {
+            "src": "/system-builder\\.html",
+            "dest": "/system-builder-testing.html"
+        },
+        {
+            "src": "/system-builder\\.js",
             "status": 404
         },
         {
@@ -29,12 +36,12 @@
             "status": 404
         },
         {
-            "src": "/supabase_schema\\.sql",
+            "src": "/(access-control|supabaseConfig|loginJS)\\.js",
             "status": 404
         },
         {
-            "src": "/api/auth/(.*)",
-            "dest": "/index.html"
+            "src": "/supabase_schema\\.sql",
+            "status": 404
         },
         {
             "handle": "filesystem"

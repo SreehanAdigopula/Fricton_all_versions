@@ -4,7 +4,7 @@ Friction is a hand-drawn adaptive focus app for students. It combines a focus ti
 
 ## Features
 
-- Email/password login with Supabase, plus Offline Mode for local-only use.
+- Local browser storage with no login required.
 - Adaptive focus timer that reacts to completions, distractions, breaks, and failed sessions.
 - Pet buddy system with growth stages and recoverable small/sad stress forms.
 - Built-in study environments and custom YouTube/Spotify study links.
@@ -24,11 +24,11 @@ python3 -m http.server 8004 --bind 127.0.0.1
 Then open the matching local address:
 
 ```text
-http://127.0.0.1:8004/login.html
+http://127.0.0.1:8004/friction_html.html
 ```
 
 If that port is busy, use another open port and update the address to match.
 
 ## Notes
 
-This is a student-project MVP. Supabase signup, email confirmation, and cross-device sync require the configured Supabase project to be available and correctly allow the site URL as an auth redirect.
+This is a student-project MVP. Progress is saved in the current browser only, so clearing site data or switching devices will not carry progress over.
