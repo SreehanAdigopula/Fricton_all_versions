@@ -161,7 +161,8 @@
                         class="focus-media-frame"
                         title="Focus environment media"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        referrerpolicy="unsafe-url"
+                        sandbox="allow-scripts allow-same-origin allow-presentation"
+                        referrerpolicy="no-referrer"
                     ></iframe>
                 </div>
             </article>
@@ -524,6 +525,6 @@
         Progress is running in temporary mode because local saving is blocked in this browser tab.
     </div>
 
-    <script src="frictionJS.js?v=local-storage-20260905"></script>
+    <script src="frictionJS.js?v=security-hardening-20260905"></script>
 </body>
 </html>

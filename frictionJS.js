@@ -416,7 +416,7 @@ function sanitizeSettings(savedSettings = {}) {
         theme: ["classic", "blueprint", "sunset", "forest", "midnight", "citrus", "white", "black"].includes(savedSettings.theme)
             ? savedSettings.theme
             : "classic",
-        paperTint: typeof savedSettings.paperTint === "string" ? savedSettings.paperTint : "#fdfbf7",
+        paperTint: normalizeColorValue(savedSettings.paperTint),
         backgroundShape: ["doodles", "orbit", "confetti", "calm", "minimal"].includes(savedSettings.backgroundShape)
             ? savedSettings.backgroundShape
             : "doodles",
@@ -438,14 +438,13 @@ function sanitizeFocusEnvironment(savedEnvironment = {}) {
     const validTrackId = selected === "custom" || isTrackIdValidForEnvironment(selected, candidateTrackId)
         ? candidateTrackId
         : defaultTrackId;
+    const safeCustomLink = sanitizeCustomMediaLink(savedEnvironment.customLink);
     return {
         selected,
         selectedTrackId: validTrackId,
         isPlaying: Boolean(savedEnvironment.isPlaying),
         volume: Math.min(100, Math.max(0, toPositiveNumber(savedEnvironment.volume, 55))),
-        customLink: typeof savedEnvironment.customLink === "string"
-            ? savedEnvironment.customLink.trim()
-            : "",
+        customLink: safeCustomLink,
         customMediaType: ["video", "playlist", "spotify"].includes(savedEnvironment.customMediaType)
             ? savedEnvironment.customMediaType
             : "video"
@@ -478,12 +477,12 @@ function sanitizeAdaptiveProfile(savedProfile = {}) {
     return {
         recentEvents,
         recommendedMinutes: clampSessionMinutes(toPositiveNumber(savedProfile.recommendedMinutes, CONFIG.defaultSessionMinutes)),
-        focusStyle: typeof savedProfile.focusStyle === "string" ? savedProfile.focusStyle : "Learning Mode",
+        focusStyle: typeof savedProfile.focusStyle === "string" ? savedProfile.focusStyle.slice(0, 80) : "Learning Mode",
         lastReason: typeof savedProfile.lastReason === "string"
-            ? savedProfile.lastReason
+            ? savedProfile.lastReason.slice(0, 240)
             : "Friction is waiting for a few sessions before it adapts.",
         lastTip: typeof savedProfile.lastTip === "string"
-            ? savedProfile.lastTip
+            ? savedProfile.lastTip.slice(0, 240)
             : "Finish a few sessions so Friction can learn your rhythm."
     };
 }
@@ -1084,7 +1083,7 @@ function openFocusSource() {
         return;
     }
 
-    window.open(sourceUrl, "_blank", "noopener,noreferrer");
+    openTrustedMediaUrl(sourceUrl);
 }
 
 function recordAdaptiveEvent(type) {
@@ -2076,6 +2075,40 @@ function updateOutput(message) {
     elements.output.textContent = message;
 }
 
+function sanitizeCustomMediaLink(rawUrl) {
+    if (typeof rawUrl !== "string") {
+        return "";
+    }
+
+    const trimmed = rawUrl.trim().slice(0, 500);
+    if (!trimmed) {
+        return "";
+    }
+
+    const youtubeData = extractYouTubeData(trimmed);
+    if (youtubeData) {
+        return getCanonicalYouTubeUrl(youtubeData);
+    }
+
+    const spotifyData = extractSpotifyData(trimmed);
+    if (spotifyData) {
+        return `https://open.spotify.com/${spotifyData.type}/${spotifyData.value}`;
+    }
+
+    return "";
+}
+
+function openTrustedMediaUrl(rawUrl) {
+    const safeUrl = sanitizeCustomMediaLink(rawUrl);
+    if (!safeUrl) {
+        updateOutput("That source link is not a supported YouTube or Spotify URL.");
+        render();
+        return;
+    }
+
+    window.open(safeUrl, "_blank", "noopener,noreferrer");
+}
+
 function saveAndRender() {
     persistState();
     render();
@@ -2305,15 +2338,16 @@ function saveCustomMediaLink() {
         return;
     }
 
-    const customEmbed = buildCustomEmbedUrl(value);
+    const safeLink = sanitizeCustomMediaLink(value);
+    const customEmbed = buildCustomEmbedUrl(safeLink);
     if (customEmbed === "about:blank") {
         updateOutput("Save a full YouTube or Spotify link so Friction can embed it here.");
         render();
         return;
     }
 
-    state.focusEnvironment.customLink = value;
-    state.focusEnvironment.customMediaType = getCustomMediaType(value);
+    state.focusEnvironment.customLink = safeLink;
+    state.focusEnvironment.customMediaType = getCustomMediaType(safeLink);
     state.focusEnvironment.selected = "custom";
     updateOutput("Custom study link saved.");
     syncFocusEnvironment();
@@ -2327,7 +2361,7 @@ function openCustomMediaLink() {
         return;
     }
 
-    window.open(state.focusEnvironment.customLink, "_blank", "noopener,noreferrer");
+    openTrustedMediaUrl(state.focusEnvironment.customLink);
 }
 
 function removeCustomMediaLink() {
@@ -3219,12 +3253,20 @@ function getCustomMediaType(rawUrl) {
 function extractYouTubeData(urlString) {
     try {
         const url = new URL(urlString);
-        const host = url.hostname.replace("www.", "");
+        const host = url.hostname.toLowerCase().replace(/^www\./, "");
+        const isShortHost = host === "youtu.be";
+        const isYouTubeHost = host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com";
+        if (!isShortHost && !isYouTubeHost) {
+            return null;
+        }
         const app = host.includes("music.youtube.com") ? "ytmusic" : "youtube";
 
-        if (host === "youtu.be") {
-            const videoId = url.pathname.replace("/", "");
-            const playlistId = url.searchParams.get("list") || "";
+        if (isShortHost) {
+            const videoId = normalizeYouTubeVideoId(url.pathname.split("/").filter(Boolean)[0] || "");
+            const playlistId = normalizeYouTubePlaylistId(url.searchParams.get("list") || "");
+            if (!videoId) {
+                return null;
+            }
             return {
                 type: playlistId ? "playlist" : "video",
                 value: playlistId || videoId,
@@ -3234,27 +3276,29 @@ function extractYouTubeData(urlString) {
             };
         }
 
-        if (host.includes("youtube.com")) {
-            if (url.pathname === "/watch") {
-                const videoId = url.searchParams.get("v");
-                const playlistId = url.searchParams.get("list");
-                if (playlistId) {
-                    return { type: "playlist", value: playlistId, app, videoId: videoId || "" };
-                }
-                if (videoId) {
-                    return { type: "video", value: videoId, playlist: playlistId || "", app };
-                }
+        if (url.pathname === "/watch") {
+            const videoId = normalizeYouTubeVideoId(url.searchParams.get("v") || "");
+            const playlistId = normalizeYouTubePlaylistId(url.searchParams.get("list") || "");
+            if (playlistId) {
+                return { type: "playlist", value: playlistId, app, videoId: videoId || "" };
             }
-
-            if (url.pathname.startsWith("/playlist")) {
-                const playlistId = url.searchParams.get("list");
-                if (playlistId) {
-                    return { type: "playlist", value: playlistId, app };
-                }
+            if (videoId) {
+                return { type: "video", value: videoId, playlist: playlistId || "", app };
             }
+        }
 
-            if (url.pathname.startsWith("/embed/")) {
-                return { type: "video", value: url.pathname.split("/embed/")[1], playlist: url.searchParams.get("list") || "", app };
+        if (url.pathname.startsWith("/playlist")) {
+            const playlistId = normalizeYouTubePlaylistId(url.searchParams.get("list") || "");
+            if (playlistId) {
+                return { type: "playlist", value: playlistId, app };
+            }
+        }
+
+        if (url.pathname.startsWith("/embed/")) {
+            const videoId = normalizeYouTubeVideoId(url.pathname.split("/embed/")[1]?.split("/")[0] || "");
+            const playlistId = normalizeYouTubePlaylistId(url.searchParams.get("list") || "");
+            if (videoId) {
+                return { type: "video", value: videoId, playlist: playlistId || "", app };
             }
         }
     } catch (error) {
@@ -3264,6 +3308,26 @@ function extractYouTubeData(urlString) {
     return null;
 }
 
+function normalizeYouTubeVideoId(value) {
+    const videoId = String(value || "").trim();
+    return /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : "";
+}
+
+function normalizeYouTubePlaylistId(value) {
+    const playlistId = String(value || "").trim();
+    return /^[A-Za-z0-9_-]{1,90}$/.test(playlistId) ? playlistId : "";
+}
+
+function getCanonicalYouTubeUrl(youtubeData) {
+    const baseHost = youtubeData.app === "ytmusic" ? "music.youtube.com" : "www.youtube.com";
+    if (youtubeData.type === "playlist") {
+        const videoParam = youtubeData.videoId ? `&v=${youtubeData.videoId}` : "";
+        return `https://${baseHost}/playlist?list=${youtubeData.value}${videoParam}`;
+    }
+
+    return `https://${baseHost}/watch?v=${youtubeData.value}${youtubeData.playlist ? `&list=${youtubeData.playlist}` : ""}`;
+}
+
 function capitalizeWord(value) {
     return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : "";
 }
@@ -3271,14 +3335,16 @@ function capitalizeWord(value) {
 function extractSpotifyData(urlString) {
     try {
         const url = new URL(urlString);
-        if (!url.hostname.includes("spotify.com")) {
+        const host = url.hostname.toLowerCase().replace(/^www\./, "");
+        if (host !== "open.spotify.com") {
             return null;
         }
 
         const parts = url.pathname.split("/").filter(Boolean);
         const typeIndex = parts.findIndex((part) => ["playlist", "track", "album", "episode", "show"].includes(part));
-        if (typeIndex >= 0 && parts[typeIndex + 1]) {
-            return { type: parts[typeIndex], value: parts[typeIndex + 1] };
+        const spotifyId = parts[typeIndex + 1] || "";
+        if (typeIndex >= 0 && /^[A-Za-z0-9]{8,80}$/.test(spotifyId)) {
+            return { type: parts[typeIndex], value: spotifyId };
         }
     } catch (error) {
         return null;

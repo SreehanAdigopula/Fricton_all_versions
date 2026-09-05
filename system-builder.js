@@ -90,11 +90,66 @@ function openWorkspace(name) {
 }
 
 function loadStore() {
-    try { return { systems: [], autocorrectEnabled: true, ...JSON.parse(localStorage.getItem(SYSTEM_KEY) || "{}") }; }
+    try { return sanitizeStore(JSON.parse(localStorage.getItem(SYSTEM_KEY) || "{}")); }
     catch { return { systems: [], autocorrectEnabled: true }; }
 }
-function saveStore() { localStorage.setItem(SYSTEM_KEY, JSON.stringify(store)); }
+function saveStore() {
+    store = sanitizeStore(store);
+    localStorage.setItem(SYSTEM_KEY, JSON.stringify(store));
+}
 function getAppState() { try { return JSON.parse(localStorage.getItem(APP_KEY) || "{}"); } catch { return {}; } }
+function sanitizeStore(rawStore = {}) {
+    return {
+        systems: Array.isArray(rawStore.systems)
+            ? rawStore.systems.map(sanitizeSystemRecord).filter(Boolean).slice(0, 20)
+            : [],
+        autocorrectEnabled: rawStore.autocorrectEnabled !== false
+    };
+}
+function sanitizeSystemRecord(rawSystem) {
+    if (!rawSystem || typeof rawSystem !== "object") return null;
+    const fields = ["name", "category", "goal", "why", "startingPoint", "targetOutcome", "targetDate", "deadlineType", "measure", "weeklyHours", "energyTime", "busyReality", "resources", "gaps", "nextStep", "fullAction", "reducedAction", "survivalAction", "days", "trigger", "place", "preparation", "restartProtocol", "reviewDay"];
+    const system = {};
+    fields.forEach(key => { system[key] = clampSystemText(rawSystem[key]); });
+    system.id = /^[0-9]{1,20}$/.test(String(rawSystem.id || "")) ? String(rawSystem.id) : String(Date.now());
+    system.milestones = systemLines(rawSystem.milestones);
+    system.weeklyActions = systemLines(rawSystem.weeklyActions);
+    system.environmentRules = systemLines(rawSystem.environmentRules);
+    system.backupPlans = systemLines(rawSystem.backupPlans);
+    system.obstacles = Array.isArray(rawSystem.obstacles) ? rawSystem.obstacles.filter(item => obstacles.includes(item)).slice(0, 8) : [];
+    system.completedActions = Array.isArray(rawSystem.completedActions)
+        ? rawSystem.completedActions.map(item => clampSystemText(item, 180)).filter(action => system.weeklyActions.includes(action)).slice(0, 40)
+        : [];
+    system.logs = Array.isArray(rawSystem.logs) ? rawSystem.logs.map(sanitizeSystemLog).filter(Boolean).slice(0, 50) : [];
+    system.currentMode = ["Full", "Reduced", "Survival"].includes(rawSystem.currentMode) ? rawSystem.currentMode : "Full";
+    system.currentMilestone = system.milestones.includes(rawSystem.currentMilestone) ? rawSystem.currentMilestone : (system.milestones[0] || system.nextStep);
+    system.createdAt = Number.isFinite(Number(rawSystem.createdAt)) ? Number(rawSystem.createdAt) : Date.now();
+    system.updatedAt = Number.isFinite(Number(rawSystem.updatedAt)) ? Number(rawSystem.updatedAt) : Date.now();
+    return system;
+}
+function sanitizeSystemLog(rawLog) {
+    if (!rawLog || typeof rawLog !== "object") return null;
+    return {
+        completed: rawLog.completed === true,
+        mode: ["Full", "Reduced", "Survival"].includes(rawLog.mode) ? rawLog.mode : "Full",
+        difficulty: ["Easy", "Okay", "Hard"].includes(rawLog.difficulty) ? rawLog.difficulty : "Okay",
+        friction: obstacles.includes(rawLog.friction) || rawLog.friction === "None" ? rawLog.friction : "None",
+        nextAction: clampSystemText(rawLog.nextAction, 220),
+        at: Number.isFinite(Number(rawLog.at)) ? Number(rawLog.at) : Date.now()
+    };
+}
+function clampSystemText(value, limit = 500) {
+    return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+function systemLines(value, limit = 12) {
+    const text = Array.isArray(value) ? value.join("\n") : String(value || "");
+    return text.split("\n")
+        .map(item => item.trim())
+        .filter(Boolean)
+        .map(item => clampSystemText(item, 220))
+        .filter(Boolean)
+        .slice(0, limit);
+}
 function applyAppTheme() {
     const app = getAppState();
     const settings = app.settings || {};
@@ -598,7 +653,8 @@ function renderDashboard() {
         const completed = system.logs.filter(log => log.completed).length; const consistency = system.logs.length ? Math.round(completed / system.logs.length * 100) : 0;
         const actionProgress = getCompletedActionCount(system);
         const last = system.logs[0]?.nextAction || system.nextStep;
-        return `<article class="system-card sketch-panel"><div><span class="mode-badge">${escapeHtml(system.currentMode)} Mode</span><h3>${escapeHtml(system.name)}</h3><p class="system-goal">${escapeHtml(system.goal)}</p><div class="system-facts"><div class="fact"><span>Target date</span><strong>${formatDate(system.targetDate)}</strong></div><div class="fact"><span>Current milestone</span><strong>${escapeHtml(system.currentMilestone)}</strong></div><div class="fact"><span>Action bank</span><strong>${actionProgress} of ${system.weeklyActions.length} actions completed</strong></div><div class="fact"><span>Consistency</span><strong>${consistency}%</strong></div><div class="fact"><span>Last or next action</span><strong>${escapeHtml(last)}</strong></div></div></div><div class="system-actions"><button class="sketch-btn primary-btn" data-continue="${system.id}" type="button">Continue System</button><button class="sketch-btn quiet-btn" data-review="${system.id}" type="button">Review System</button><button class="sketch-btn peach-btn" data-edit="${system.id}" type="button">Edit System</button><button class="text-btn" data-delete="${system.id}" type="button">Delete System</button></div></article>`;
+        const systemId = escapeHtml(system.id);
+        return `<article class="system-card sketch-panel"><div><span class="mode-badge">${escapeHtml(system.currentMode)} Mode</span><h3>${escapeHtml(system.name)}</h3><p class="system-goal">${escapeHtml(system.goal)}</p><div class="system-facts"><div class="fact"><span>Target date</span><strong>${formatDate(system.targetDate)}</strong></div><div class="fact"><span>Current milestone</span><strong>${escapeHtml(system.currentMilestone)}</strong></div><div class="fact"><span>Action bank</span><strong>${actionProgress} of ${system.weeklyActions.length} actions completed</strong></div><div class="fact"><span>Consistency</span><strong>${consistency}%</strong></div><div class="fact"><span>Last or next action</span><strong>${escapeHtml(last)}</strong></div></div></div><div class="system-actions"><button class="sketch-btn primary-btn" data-continue="${systemId}" type="button">Continue System</button><button class="sketch-btn quiet-btn" data-review="${systemId}" type="button">Review System</button><button class="sketch-btn peach-btn" data-edit="${systemId}" type="button">Edit System</button><button class="text-btn" data-delete="${systemId}" type="button">Delete System</button></div></article>`;
     }).join("");
 }
 function handleSystemCardClick(event) {
@@ -714,7 +770,7 @@ function missedRecommendation(reason) { if (/phone|distract/i.test(reason)) retu
 function openReview(id) {
     const system = findSystem(id); if (!system) return; $("#systemsDashboard").hidden = true; $("#dailySystemView").hidden = true;
     const view = $("#reviewSystemView"); view.hidden = false; const logs = system.logs; const done = logs.filter(l => l.completed); const full = done.filter(l => l.mode === "Full").length; const fallback = done.filter(l => l.mode !== "Full").length; const consistency = logs.length ? Math.round(done.length / logs.length * 100) : 0; const common = mostCommon(logs.map(l => l.friction).filter(x => x && x !== "None")) || "No repeated obstacle yet";
-    view.innerHTML = `<div class="review-head"><div><p class="scribble-label">System Review</p><h2>${escapeHtml(system.name)}</h2></div><button class="text-btn" data-back-dashboard type="button">Back to systems</button></div><div class="review-grid"><article class="review-block"><span class="metric-number">${consistency}%</span><strong>Action consistency</strong><p>${done.length} completed from ${logs.length} check-ins.</p></article><article class="review-block"><span class="metric-number">${full}</span><strong>Full Mode sessions</strong><p>${fallback} fallback sessions prevented a complete skip.</p></article><article class="review-block"><span class="metric-number">${system.milestones.length}</span><strong>Milestones in the system</strong><p>Current: ${escapeHtml(system.currentMilestone)}</p></article><article class="review-block"><span class="metric-number">${escapeHtml(common)}</span><strong>Most common friction</strong><p>${escapeHtml(reviewAdvice(common, consistency))}</p></article></div><article class="review-block recovery-note"><h3>Recommended adjustment</h3><p>${escapeHtml(reviewAdvice(common, consistency))}</p><button class="sketch-btn primary-btn" data-continue="${system.id}" type="button">Return to Today's Action</button></article>`;
+    view.innerHTML = `<div class="review-head"><div><p class="scribble-label">System Review</p><h2>${escapeHtml(system.name)}</h2></div><button class="text-btn" data-back-dashboard type="button">Back to systems</button></div><div class="review-grid"><article class="review-block"><span class="metric-number">${consistency}%</span><strong>Action consistency</strong><p>${done.length} completed from ${logs.length} check-ins.</p></article><article class="review-block"><span class="metric-number">${full}</span><strong>Full Mode sessions</strong><p>${fallback} fallback sessions prevented a complete skip.</p></article><article class="review-block"><span class="metric-number">${system.milestones.length}</span><strong>Milestones in the system</strong><p>Current: ${escapeHtml(system.currentMilestone)}</p></article><article class="review-block"><span class="metric-number">${escapeHtml(common)}</span><strong>Most common friction</strong><p>${escapeHtml(reviewAdvice(common, consistency))}</p></article></div><article class="review-block recovery-note"><h3>Recommended adjustment</h3><p>${escapeHtml(reviewAdvice(common, consistency))}</p><button class="sketch-btn primary-btn" data-continue="${escapeHtml(system.id)}" type="button">Return to Today's Action</button></article>`;
     view.querySelector("[data-back-dashboard]").addEventListener("click", showDashboard); view.querySelector("[data-continue]").addEventListener("click", () => openDaily(id));
 }
 function reviewAdvice(common, consistency) { if (consistency < 60) return "Reduce the next planning cycle and begin with Reduced Mode. Keep overdue tasks out of the restart."; if (/phone|distract/i.test(common)) return "Add a phone-away trigger before every session."; return "Keep the current workload. Change only the part that repeatedly created friction."; }
