@@ -226,7 +226,7 @@
                     <span class="tape tape-right"></span>
                     <div>
                         <p class="scribble-label">Thought Parking Lot</p>
-                        <p class="card-copy">Put a distracting thought somewhere safe, then get back to the thing in front of you. Later, promote it into a motivation goal or dismiss it.</p>
+                        <p class="card-copy">Put a distracting thought or future task somewhere safe, then get back to the thing in front of you. It will stay here until you dismiss or clear it.</p>
                         <div class="parking-lot-entry">
                             <input id="parkingLotInput" class="sketch-input" type="text" maxlength="160" placeholder="I should remember to...">
                             <button id="parkThoughtBtn" class="sketch-btn secondary-btn" type="button">Park It</button>
@@ -458,8 +458,9 @@
                         </label>
                         <label class="setting-item wobble-md checkbox-item">
                             <span class="mini-label">Moving Sketch Background</span>
-                            <input id="motionBackgroundToggle" type="checkbox" checked>
-                            <span>Let the 3D desk lines drift quietly behind the app.</span>
+                            <input id="motionBackgroundToggle" type="checkbox">
+                            <span>Animate the 3D dot field behind the app.</span>
+                            <span class="motion-performance-warning"><span class="warning-sign" aria-hidden="true">!</span> Performance warning: this effect may feel laggy on some devices.</span>
                         </label>
                     </div>
                 </article>
@@ -525,6 +526,27 @@
         Progress is running in temporary mode because local saving is blocked in this browser tab.
     </div>
 
-    <script src="frictionJS.js?v=security-hardening-20260905"></script>
+    <dialog class="reset-data-dialog wobble-lg" id="resetDataDialog" aria-labelledby="resetDataTitle">
+        <form class="reset-data-form" method="dialog">
+            <div class="reset-data-heading">
+                <span class="warning-sign" aria-hidden="true">!</span>
+                <div>
+                    <p class="scribble-label">Permanent Reset</p>
+                    <h2 id="resetDataTitle">Delete all local Friction data?</h2>
+                </div>
+            </div>
+            <p>This permanently deletes your sessions, settings, pet progress, saved links, and parked thoughts from this browser. It cannot be undone.</p>
+            <label class="reset-confirm-field">
+                <span>Type <strong>CLEAR</strong> to continue</span>
+                <input id="resetDataInput" class="sketch-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            </label>
+            <div class="stack-actions two-up reset-dialog-actions">
+                <button id="cancelResetDataBtn" class="sketch-btn ghost-btn" type="button">Keep My Data</button>
+                <button id="confirmResetDataBtn" class="sketch-btn danger-btn" type="button" disabled>Delete Local Data</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="frictionJS.js?v=parking-motion-reset-dialog-20260907"></script>
 </body>
 </html>

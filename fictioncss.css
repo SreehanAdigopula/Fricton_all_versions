@@ -1630,6 +1630,79 @@ body.shapes-calm .app-shell::after {
     font-size: 0.95rem;
 }
 
+.motion-performance-warning {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--subtle-text);
+    line-height: 1.25;
+}
+
+.warning-sign {
+    width: 1.45rem;
+    height: 1.3rem;
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    padding-top: 0.2rem;
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1;
+    background: var(--yellow);
+    border: 2px solid var(--ink);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.reset-data-dialog {
+    width: min(560px, calc(100vw - 2rem));
+    margin: auto;
+    padding: 0;
+    color: var(--ink);
+    background: var(--paper-custom);
+    border: 4px solid var(--ink);
+    box-shadow: var(--shadow-strong);
+    font: inherit;
+}
+
+.reset-data-dialog::backdrop {
+    background: rgba(22, 24, 28, 0.68);
+}
+
+.reset-data-form {
+    display: grid;
+    gap: 1rem;
+    padding: 1.35rem;
+}
+
+.reset-data-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+}
+
+.reset-data-heading .warning-sign {
+    width: 2.1rem;
+    height: 1.9rem;
+    margin-top: 0.2rem;
+    font-size: 1.1rem;
+}
+
+.reset-data-heading h2,
+.reset-data-form p {
+    margin: 0;
+}
+
+.reset-confirm-field {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.reset-dialog-actions {
+    margin: 0;
+}
+
 .parking-dismiss {
     color: var(--subtle-text);
 }

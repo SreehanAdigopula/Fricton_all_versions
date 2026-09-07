@@ -24,15 +24,15 @@
             "dest": "/friction_html.html"
         },
         {
-            "src": "/system-builder\\.html",
+            "src": "/system-builder\\.html/?",
             "dest": "/system-builder-testing.html"
         },
         {
-            "src": "/system-builder\\.js",
+            "src": "/system-builder\\.js/?",
             "status": 404
         },
         {
-            "src": "/system-builder\\.css",
+            "src": "/system-builder\\.css/?",
             "status": 404
         },
         {

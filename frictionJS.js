@@ -56,7 +56,7 @@ const defaultState = {
         theme: "classic",
         paperTint: "#fdfbf7",
         backgroundShape: "doodles",
-        motionBackground: true,
+        motionBackground: false,
         soundMode: "off",
         showHints: true,
         petAppearance: "dragon"
@@ -210,6 +210,10 @@ const elements = {
     hintsToggle: document.getElementById("hintsToggle"),
     petAppearanceSelect: document.getElementById("petAppearanceSelect"),
     sketchFlowCanvas: document.getElementById("sketchFlowCanvas"),
+    resetDataDialog: document.getElementById("resetDataDialog"),
+    resetDataInput: document.getElementById("resetDataInput"),
+    cancelResetDataBtn: document.getElementById("cancelResetDataBtn"),
+    confirmResetDataBtn: document.getElementById("confirmResetDataBtn"),
     appShell: document.getElementById("appShell"),
     signOutBtn: document.getElementById("signOutBtn"),
     authUserLabel: document.getElementById("authUserLabel"),
@@ -335,6 +339,10 @@ function bindEvents() {
     elements.openCustomLinkBtn.addEventListener("click", openCustomMediaLink);
     elements.removeCustomLinkBtn.addEventListener("click", removeCustomMediaLink);
     elements.signOutBtn.addEventListener("click", signOutUser);
+    elements.resetDataInput.addEventListener("input", updateResetDataConfirmation);
+    elements.cancelResetDataBtn.addEventListener("click", closeResetDataDialog);
+    elements.confirmResetDataBtn.addEventListener("click", confirmLocalDataReset);
+    elements.resetDataDialog.addEventListener("close", clearResetDataConfirmation);
 }
 
 function setActiveTab(tabName) {
@@ -420,7 +428,7 @@ function sanitizeSettings(savedSettings = {}) {
         backgroundShape: ["doodles", "orbit", "confetti", "calm", "minimal"].includes(savedSettings.backgroundShape)
             ? savedSettings.backgroundShape
             : "doodles",
-        motionBackground: savedSettings.motionBackground !== false,
+        motionBackground: savedSettings.motionBackground === true,
         soundMode: "off",
         showHints: savedSettings.showHints !== false,
         petAppearance: Object.hasOwn(CONFIG.petAppearances, savedSettings.petAppearance)
@@ -852,18 +860,8 @@ function handleParkingLotAction(event) {
         return;
     }
 
-    if (actionButton.dataset.parkingAction === "use") {
-        state.motivation.goal = thought;
-        state.motivation.lastSpeech = "";
-        state.activeTab = "focus";
-        updateOutput("Thought moved into Motivation. Generate a fresh next step when you are ready.");
-        persistState();
-        window.location.href = "system-builder.html#motivation";
-        return;
-    } else {
-        state.parkingLot.splice(thoughtIndex, 1);
-        updateOutput("Thought dismissed from the parking lot.");
-    }
+    state.parkingLot.splice(thoughtIndex, 1);
+    updateOutput("Thought dismissed from the parking lot.");
 
     saveAndRender();
 }
@@ -1444,13 +1442,6 @@ function renderParkingLot() {
         const actions = document.createElement("div");
         actions.className = "parking-lot-item-actions";
 
-        const useButton = document.createElement("button");
-        useButton.type = "button";
-        useButton.className = "text-action";
-        useButton.dataset.parkingAction = "use";
-        useButton.dataset.parkingIndex = String(state.parkingLot.indexOf(thought));
-        useButton.textContent = "Use For Goal";
-
         const dismissButton = document.createElement("button");
         dismissButton.type = "button";
         dismissButton.className = "text-action parking-dismiss";
@@ -1458,7 +1449,7 @@ function renderParkingLot() {
         dismissButton.dataset.parkingIndex = String(state.parkingLot.indexOf(thought));
         dismissButton.textContent = "Dismiss";
 
-        actions.append(useButton, dismissButton);
+        actions.append(dismissButton);
         item.append(copy, actions);
         elements.parkingLotList.append(item);
     });
@@ -2149,14 +2140,34 @@ async function recordLocalSession() {
     // Session history is already included in the local app state snapshot.
 }
 
-async function signOutUser() {
+function signOutUser() {
     if (!canUseStorage) {
         showStorageWarning();
         return;
     }
 
-    const shouldReset = window.confirm("Reset this browser's Friction progress and settings?");
-    if (!shouldReset) {
+    clearResetDataConfirmation();
+    elements.resetDataDialog.showModal();
+    elements.resetDataInput.focus();
+}
+
+function updateResetDataConfirmation() {
+    elements.confirmResetDataBtn.disabled = elements.resetDataInput.value !== "CLEAR";
+}
+
+function clearResetDataConfirmation() {
+    elements.resetDataInput.value = "";
+    elements.confirmResetDataBtn.disabled = true;
+}
+
+function closeResetDataDialog() {
+    elements.resetDataDialog.close();
+}
+
+function confirmLocalDataReset() {
+    if (elements.resetDataInput.value !== "CLEAR") {
+        updateOutput("Local data reset canceled. Nothing was deleted.");
+        updateResetDataConfirmation();
         return;
     }
 
