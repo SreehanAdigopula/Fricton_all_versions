@@ -23,6 +23,11 @@
     box-sizing: border-box;
 }
 
+:focus-visible {
+    outline: 3px solid var(--blue);
+    outline-offset: 3px;
+}
+
 [hidden] {
     display: none !important;
 }
@@ -693,7 +698,7 @@ body.shapes-calm .app-shell::after {
 }
 
 .tab-btn.is-active,
-.tab-btn:hover {
+.tab-btn:not(:disabled):hover {
     background: var(--accent);
     color: var(--white);
     box-shadow: 2px 2px 0 0 var(--ink);
@@ -1364,11 +1369,49 @@ body.shapes-calm .app-shell::after {
     color: var(--subtle-text);
 }
 
-.spotify-playlist-note {
+.playlist-rules {
     margin: 0.5rem 0 0;
     color: var(--subtle-text);
     font-size: 1rem;
     line-height: 1.25;
+}
+
+.playlist-rules p {
+    margin: 0.28rem 0;
+}
+
+.custom-media-feedback {
+    min-height: 1.3em;
+    margin: 0.55rem 0 0;
+    color: var(--subtle-text);
+}
+
+.custom-media-feedback[data-tone="error"] {
+    color: var(--accent);
+}
+
+.custom-media-feedback[data-tone="success"] {
+    color: var(--blue);
+}
+
+.closed-feature {
+    position: relative;
+    overflow: hidden;
+}
+
+.closed-feature::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: -5%;
+    width: 110%;
+    height: 4px;
+    border: 1px solid var(--ink);
+    background: var(--accent);
+    transform: rotate(-4deg);
+    transform-origin: center;
+    pointer-events: none;
 }
 
 .environment-controls {
@@ -2346,6 +2389,19 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
+    .rotate-left,
+    .rotate-right {
+        transform: none;
+    }
+
+    .tape-left {
+        left: 0;
+    }
+
+    .tape-right {
+        right: 0;
+    }
+
     .app-shell {
         width: min(100% - 1rem, 100%);
     }

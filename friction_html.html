@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="fictioncss.css">
+    <link rel="stylesheet" href="fictioncss.css?v=playlist-only-20260909">
 </head>
 <body>
     <canvas id="sketchFlowCanvas" class="sketch-flow-canvas" aria-hidden="true"></canvas>
@@ -42,7 +42,7 @@
         <nav class="tab-strip" aria-label="Primary">
             <button class="tab-btn is-active" data-tab="home" id="tabHome">Home</button>
             <button class="tab-btn" data-tab="focus" id="tabFocus">Focus</button>
-            <a class="tab-btn companion-link" href="system-builder.html#motivation" id="tabMotivation">Motivation + Systems</a>
+            <button class="tab-btn companion-link closed-feature" id="tabMotivation" type="button" disabled title="Closed while this feature is being tested">Motivation + Systems (Closed)</button>
             <button class="tab-btn" data-tab="pet" id="tabPet">Pet</button>
             <button class="tab-btn" data-tab="settings" id="tabSettings">Settings</button>
         </nav>
@@ -161,7 +161,7 @@
                         class="focus-media-frame"
                         title="Focus environment media"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        sandbox="allow-scripts allow-same-origin allow-presentation"
+                        sandbox="allow-scripts allow-same-origin"
                         referrerpolicy="strict-origin-when-cross-origin"
                     ></iframe>
                 </div>
@@ -203,7 +203,7 @@
                         <button id="distractedBtn" class="sketch-btn warning-btn">Distracted</button>
                         <button id="breakBtn" class="sketch-btn secondary-btn">Break</button>
                         <button id="failBtn" class="sketch-btn danger-btn">Failed</button>
-                        <button id="motivationBtn" class="sketch-btn primary-btn wide-action">Motivation + System Builder</button>
+                        <button id="motivationBtn" class="sketch-btn primary-btn wide-action closed-feature" type="button" disabled title="Closed while this feature is being tested">Motivation + System Builder (Closed)</button>
                     </div>
                     <div class="focus-rulebook wobble-md">
                         <p class="mini-label">Rules In Play</p>
@@ -305,9 +305,14 @@
                                 <button id="showMediaBtn" class="sketch-btn secondary-btn">Reload Study Box</button>
                             </div>
                             <div class="custom-link-box wobble-md">
-                                <span class="mini-label">Paste YouTube or Spotify URL</span>
-                                <input id="customMediaInput" class="sketch-input" type="url" placeholder="https://youtube.com/... or https://open.spotify.com/...">
-                                <p class="spotify-playlist-note">Spotify playlists need to be yours for full playback. Other playlists may only load as previews.</p>
+                                <label class="mini-label" for="customMediaInput">Paste YouTube or Spotify Playlist URL</label>
+                                <input id="customMediaInput" class="sketch-input" type="url" inputmode="url" maxlength="500" autocomplete="off" aria-describedby="customMediaRules customMediaFeedback" placeholder="https://youtube.com/playlist?... or https://open.spotify.com/playlist/...">
+                                <div class="playlist-rules" id="customMediaRules">
+                                    <p>YouTube links must be public playlists. Regular videos and auto-generated mixes are not accepted.</p>
+                                    <p>Spotify links must be playlists. Use your own playlist for full playback; other playlists may only provide previews.</p>
+                                    <p>Only add appropriate study media that you trust.</p>
+                                </div>
+                                <p class="custom-media-feedback" id="customMediaFeedback" role="status" aria-live="polite"></p>
                                 <div class="stack-actions three-up">
                                     <button id="saveCustomLinkBtn" class="sketch-btn secondary-btn">Save Link</button>
                                     <button id="openCustomLinkBtn" class="sketch-btn primary-btn">Open Source</button>
@@ -547,6 +552,6 @@
         </form>
     </dialog>
 
-    <script src="frictionJS.js?v=youtube-referrer-fix-20260909"></script>
+    <script src="frictionJS.js?v=playlist-only-20260909"></script>
 </body>
 </html>

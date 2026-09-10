@@ -67,7 +67,7 @@ const defaultState = {
         isPlaying: false,
         volume: 55,
         customLink: "",
-        customMediaType: "video"
+        customMediaType: "playlist"
     },
     motivation: {
         goal: "",
@@ -181,6 +181,7 @@ const elements = {
     removeCustomLinkBtn: document.getElementById("removeCustomLinkBtn"),
     savedCustomLink: document.getElementById("savedCustomLink"),
     customMediaTypeLabel: document.getElementById("customMediaTypeLabel"),
+    customMediaFeedback: document.getElementById("customMediaFeedback"),
     petAvatar: document.getElementById("petAvatar"),
     petInfo: document.getElementById("petInfo"),
     petLevelDisplay: document.getElementById("petLevelDisplay"),
@@ -279,6 +280,9 @@ function bindEvents() {
     elements.noiseTrackList.addEventListener("change", handleTrackSelection);
     elements.handpanTrackList.addEventListener("change", handleTrackSelection);
     elements.focusMediaFrame.addEventListener("load", handleFocusMediaFrameLoad);
+    elements.customMediaInput.addEventListener("input", () => {
+        setCustomMediaFeedback("");
+    });
 
     elements.heroStartBtn.addEventListener("click", () => {
         setActiveTab("focus");
@@ -293,7 +297,6 @@ function bindEvents() {
     elements.distractedBtn.addEventListener("click", markDistracted);
     elements.breakBtn.addEventListener("click", takeBreak);
     elements.failBtn.addEventListener("click", failSession);
-    elements.motivationBtn.addEventListener("click", runMotivationBoost);
     elements.parkThoughtBtn.addEventListener("click", parkThought);
     elements.parkingLotInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
@@ -361,7 +364,12 @@ function loadState() {
             return { ...defaultState };
         }
 
-        return sanitizeState(JSON.parse(saved));
+        const sanitizedState = sanitizeState(JSON.parse(saved));
+        const sanitizedSnapshot = JSON.stringify(sanitizedState);
+        if (sanitizedSnapshot !== saved) {
+            window.localStorage.setItem(STORAGE_KEY, sanitizedSnapshot);
+        }
+        return sanitizedState;
     } catch (error) {
         console.warn("Unable to load saved Friction state.", error);
         return { ...defaultState };
@@ -453,9 +461,9 @@ function sanitizeFocusEnvironment(savedEnvironment = {}) {
         isPlaying: Boolean(savedEnvironment.isPlaying),
         volume: Math.min(100, Math.max(0, toPositiveNumber(savedEnvironment.volume, 55))),
         customLink: safeCustomLink,
-        customMediaType: ["video", "playlist", "spotify"].includes(savedEnvironment.customMediaType)
+        customMediaType: ["playlist", "spotify"].includes(savedEnvironment.customMediaType)
             ? savedEnvironment.customMediaType
-            : "video"
+            : "playlist"
     };
 }
 
@@ -623,6 +631,7 @@ function completeSession() {
 
     const isCleanSession = state.currentDistractionCount === 0 && state.currentBreakCount === 0;
     const sessionSnapshot = getSessionSnapshot("completed");
+    const wasBonusSession = state.cleanStreakBonusSessionsLeft > 0;
     finalizeSessionBase();
     state.weeklyCompleted += 1;
     state.totalCompletedSessions += 1;
@@ -650,7 +659,12 @@ function completeSession() {
 
     const petMessage = checkWeeklyReward();
     recordAdaptiveEvent("completed");
-    const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: !earnedCleanReward });
+    const adaptiveMessage = applyAdaptiveSessionPlan({
+        allowIncrease: !earnedCleanReward && !wasBonusSession,
+        allowDecrease: !wasBonusSession
+            && sessionSnapshot.distractions < CONFIG.distractionLimit
+            && sessionSnapshot.breaks < CONFIG.breakLimit
+    });
     updateOutput(`${petMessage || sessionMessage} ${adaptiveMessage}`);
     recordLocalSession(sessionSnapshot);
     saveAndRender();
@@ -692,7 +706,7 @@ function takeBreak() {
     recordAdaptiveEvent("break");
     updateAdaptiveProfile();
 
-    if (state.currentBreakCount >= CONFIG.breakLimit) {
+    if (state.currentBreakCount === CONFIG.breakLimit) {
         state.sessionDuration = Math.max(CONFIG.minimumSessionMinutes, state.sessionDuration - 5);
         state.successStreak = 0;
         updateOutput(`Too many breaks. The next session is shorter. ${state.adaptiveProfile.lastTip}`);
@@ -717,14 +731,14 @@ function failSession() {
 
     let sessionMessage = "Session failed. Shake it off and try again.";
 
-    if (state.failStreak >= CONFIG.failStreakPenaltyThreshold) {
+    if (state.failStreak === CONFIG.failStreakPenaltyThreshold) {
         state.sessionDuration = Math.max(CONFIG.minimumSessionMinutes, state.sessionDuration - 5);
         sessionMessage = "Two failed sessions in a row. Your next session is shorter.";
     }
 
     applyBonusCountdown();
     recordAdaptiveEvent("failed");
-    const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: false });
+    const adaptiveMessage = applyAdaptiveSessionPlan({ allowIncrease: false, allowDecrease: false });
     updateOutput(`${sessionMessage} ${adaptiveMessage}`);
     recordLocalSession(sessionSnapshot);
     saveAndRender();
@@ -818,11 +832,6 @@ function getWeeklyAverage() {
     }
 
     return state.weeklyDistractionTotal / state.weeklySessionCount;
-}
-
-function runMotivationBoost() {
-    persistState();
-    window.location.href = "system-builder.html#motivation";
 }
 
 function parkThought() {
@@ -1108,12 +1117,19 @@ function updateAdaptiveProfile() {
     return insight;
 }
 
-function applyAdaptiveSessionPlan({ allowIncrease = true } = {}) {
+function applyAdaptiveSessionPlan({ allowIncrease = true, allowDecrease = true } = {}) {
     const insight = updateAdaptiveProfile();
     const previousMinutes = state.sessionDuration;
-    const nextMinutes = !allowIncrease && insight.recommendedMinutes > previousMinutes
-        ? previousMinutes
-        : insight.recommendedMinutes;
+    let nextMinutes = insight.recommendedMinutes;
+
+    if (!allowIncrease && nextMinutes > previousMinutes) {
+        nextMinutes = previousMinutes;
+    }
+    if (!allowDecrease && nextMinutes < previousMinutes) {
+        nextMinutes = previousMinutes;
+    }
+
+    state.adaptiveProfile.recommendedMinutes = nextMinutes;
 
     if (state.sessionState !== "running") {
         state.sessionDuration = nextMinutes;
@@ -2077,13 +2093,13 @@ function sanitizeCustomMediaLink(rawUrl) {
     }
 
     const youtubeData = extractYouTubeData(trimmed);
-    if (youtubeData) {
+    if (youtubeData && youtubeData.type === "playlist" && isYouTubePlaylistPage(trimmed) && !youtubeData.value.startsWith("RD")) {
         return getCanonicalYouTubeUrl(youtubeData);
     }
 
     const spotifyData = extractSpotifyData(trimmed);
-    if (spotifyData) {
-        return `https://open.spotify.com/${spotifyData.type}/${spotifyData.value}`;
+    if (spotifyData?.type === "playlist") {
+        return `https://open.spotify.com/playlist/${spotifyData.value}`;
     }
 
     return "";
@@ -2344,15 +2360,23 @@ function updateEnvironmentVolume(volumeValue) {
 function saveCustomMediaLink() {
     const value = elements.customMediaInput.value.trim();
     if (!value) {
-        updateOutput("Paste a YouTube or Spotify URL before saving.");
+        setCustomMediaFeedback("Paste a YouTube or Spotify playlist URL before saving.", "error");
+        updateOutput("Paste a YouTube or Spotify playlist URL before saving.");
         render();
         return;
     }
 
     const safeLink = sanitizeCustomMediaLink(value);
-    const customEmbed = buildCustomEmbedUrl(safeLink);
-    if (customEmbed === "about:blank") {
-        updateOutput("Save a full YouTube or Spotify link so Friction can embed it here.");
+    if (!safeLink) {
+        const youtubeData = extractYouTubeData(value);
+        const spotifyData = extractSpotifyData(value);
+        const message = youtubeData
+            ? "That is not a supported public YouTube playlist link. Open the playlist page and copy its /playlist URL. Regular videos and auto-mixes are blocked."
+            : spotifyData
+                ? "That Spotify link is not a playlist. Copy a Spotify playlist link instead."
+                : "Only YouTube playlist and Spotify playlist links are accepted. Other websites are blocked.";
+        setCustomMediaFeedback(message, "error");
+        updateOutput(message);
         render();
         return;
     }
@@ -2360,6 +2384,7 @@ function saveCustomMediaLink() {
     state.focusEnvironment.customLink = safeLink;
     state.focusEnvironment.customMediaType = getCustomMediaType(safeLink);
     state.focusEnvironment.selected = "custom";
+    setCustomMediaFeedback("Playlist saved. If it is private or restricted, its provider may refuse playback.", "success");
     updateOutput("Custom study link saved.");
     syncFocusEnvironment();
     saveAndRender();
@@ -2377,7 +2402,7 @@ function openCustomMediaLink() {
 
 function removeCustomMediaLink() {
     state.focusEnvironment.customLink = "";
-    state.focusEnvironment.customMediaType = "video";
+    state.focusEnvironment.customMediaType = "playlist";
     state.focusEnvironment.isPlaying = false;
     if (state.focusEnvironment.selected === "custom") {
         state.focusEnvironment.selected = "nature";
@@ -2385,7 +2410,13 @@ function removeCustomMediaLink() {
     }
     syncFocusEnvironment();
     updateOutput("Custom study link removed.");
+    setCustomMediaFeedback("Playlist removed.");
     saveAndRender();
+}
+
+function setCustomMediaFeedback(message, tone = "") {
+    elements.customMediaFeedback.textContent = message;
+    elements.customMediaFeedback.dataset.tone = tone;
 }
 
 function applyThemeSettings() {
@@ -3327,6 +3358,17 @@ function normalizeYouTubeVideoId(value) {
 function normalizeYouTubePlaylistId(value) {
     const playlistId = String(value || "").trim();
     return /^[A-Za-z0-9_-]{1,90}$/.test(playlistId) ? playlistId : "";
+}
+
+function isYouTubePlaylistPage(urlString) {
+    try {
+        const url = new URL(urlString);
+        const host = url.hostname.toLowerCase().replace(/^www\./, "");
+        const isYouTubeHost = host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com";
+        return isYouTubeHost && url.pathname.replace(/\/+$/, "") === "/playlist";
+    } catch (error) {
+        return false;
+    }
 }
 
 function getCanonicalYouTubeUrl(youtubeData) {

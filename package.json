@@ -1,0 +1,19 @@
+{
+  "name": "friction-release-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:release",
+    "test:static": "node --check frictionJS.js && node tests/static-check.mjs",
+    "test:core": "playwright test tests/e2e/core.spec.mjs tests/e2e/media.spec.mjs --project=chromium",
+    "test:browsers": "playwright test tests/e2e/browser-smoke.spec.mjs",
+    "test:comet": "RUN_COMET=1 playwright test tests/e2e/browser-smoke.spec.mjs --project=comet",
+    "test:security": "playwright test tests/e2e/security.spec.mjs --project=chromium",
+    "test:live": "playwright test tests/e2e/live-media.spec.mjs --project=chromium",
+    "test:release": "npm run test:static && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
