@@ -102,6 +102,7 @@ const defaultState = {
     petLevel: 1,
     nextPetRewardThreshold: CONFIG.petRewardSessionStep,
     cleanStreakBonusSessionsLeft: 0,
+    resumeEnvironmentAfterBreak: false,
     timeLeft: CONFIG.defaultSessionMinutes * 60,
     sessionState: "idle",
     timerStartedAt: null,
@@ -404,6 +405,8 @@ function sanitizeState(savedState) {
         petLevel: Math.max(1, toPositiveNumber(savedState.petLevel, 1)),
         nextPetRewardThreshold: Math.max(CONFIG.petRewardSessionStep, toPositiveNumber(savedState.nextPetRewardThreshold, CONFIG.petRewardSessionStep)),
         cleanStreakBonusSessionsLeft: toPositiveNumber(savedState.cleanStreakBonusSessionsLeft, 0),
+        resumeEnvironmentAfterBreak: normalizeSessionState(savedState.sessionState) === "paused"
+            && savedState.resumeEnvironmentAfterBreak === true,
         timeLeft: toPositiveNumber(savedState.timeLeft, CONFIG.defaultSessionMinutes * 60),
         sessionState: normalizeSessionState(savedState.sessionState),
         timerStartedAt: savedState.timerStartedAt || null,
@@ -520,7 +523,7 @@ function isTrackIdValidForEnvironment(environmentKey, trackId) {
 }
 
 function normalizeSessionState(value) {
-    return ["idle", "running", "awaiting-result"].includes(value) ? value : "idle";
+    return ["idle", "running", "paused", "awaiting-result"].includes(value) ? value : "idle";
 }
 
 function toPositiveNumber(value, fallback) {
@@ -561,6 +564,7 @@ function startSession() {
     state.currentBreakCount = 0;
     state.timeLeft = state.sessionDuration * 60;
     state.sessionState = "running";
+    state.resumeEnvironmentAfterBreak = false;
     state.timerStartedAt = Date.now();
     state.timerEndsAt = state.timerStartedAt + (state.timeLeft * 1000);
 
@@ -695,25 +699,82 @@ function markDistracted() {
 }
 
 function takeBreak() {
+    if (state.sessionState === "paused") {
+        resumeSessionFromBreak();
+        return;
+    }
+
     if (state.sessionState !== "running") {
         updateOutput("Start a session first.");
         render();
         return;
     }
 
+    state.timeLeft = Math.max(0, Math.ceil((state.timerEndsAt - Date.now()) / 1000));
+    if (state.timeLeft === 0) {
+        stopTimer();
+        state.sessionState = "awaiting-result";
+        state.timerStartedAt = null;
+        state.timerEndsAt = null;
+        updateOutput("Time is up. Mark how the session went.");
+        saveAndRender();
+        return;
+    }
+
+    stopTimer();
+    state.sessionState = "paused";
+    state.timerStartedAt = null;
+    state.timerEndsAt = null;
     state.currentBreakCount += 1;
     state.totalBreakCount += 1;
+    pauseEnvironmentForBreak();
     recordAdaptiveEvent("break");
     updateAdaptiveProfile();
 
     if (state.currentBreakCount === CONFIG.breakLimit) {
         state.sessionDuration = Math.max(CONFIG.minimumSessionMinutes, state.sessionDuration - 5);
         state.successStreak = 0;
-        updateOutput(`Too many breaks. The next session is shorter. ${state.adaptiveProfile.lastTip}`);
+        updateOutput(`Break paused. Too many breaks means the next session is shorter. Press Resume when you are ready. ${state.adaptiveProfile.lastTip}`);
     } else {
-        updateOutput(`Break recorded. ${state.currentBreakCount} of ${CONFIG.breakLimit} this session. ${state.adaptiveProfile.lastTip}`);
+        updateOutput(`Break paused. ${state.currentBreakCount} of ${CONFIG.breakLimit} this session. Press Resume when you are ready. ${state.adaptiveProfile.lastTip}`);
     }
 
+    saveAndRender();
+}
+
+function pauseEnvironmentForBreak() {
+    const descriptor = getCurrentEnvironmentDescriptor();
+    state.resumeEnvironmentAfterBreak = state.focusEnvironment.isPlaying && descriptor.canPause;
+
+    if (descriptor.provider === "spotify" && descriptor.embedUrl !== "about:blank") {
+        state.focusEnvironment.isPlaying = false;
+        elements.focusMediaFrame.src = descriptor.embedUrl;
+        lastFocusEmbedUrl = descriptor.embedUrl;
+        return;
+    }
+
+    state.focusEnvironment.isPlaying = false;
+    if (descriptor.canPause) {
+        requestEmbeddedPause();
+    }
+}
+
+function resumeSessionFromBreak() {
+    state.sessionState = "running";
+    state.timerStartedAt = Date.now();
+    state.timerEndsAt = state.timerStartedAt + (state.timeLeft * 1000);
+
+    const shouldResumeEnvironment = state.resumeEnvironmentAfterBreak;
+    state.resumeEnvironmentAfterBreak = false;
+    if (shouldResumeEnvironment) {
+        state.focusEnvironment.isPlaying = true;
+        requestEmbeddedPlay();
+    }
+
+    startTimer();
+    updateOutput(shouldResumeEnvironment
+        ? "Focus session resumed. Your study audio is resuming too."
+        : "Focus session resumed.");
     saveAndRender();
 }
 
@@ -759,6 +820,7 @@ function finalizeSessionBase() {
     state.weeklySessionCount += 1;
     state.weeklyDistractionTotal += state.currentDistractionCount;
     state.sessionState = "idle";
+    state.resumeEnvironmentAfterBreak = false;
     state.timerStartedAt = null;
     state.timerEndsAt = null;
     state.currentDistractionCount = 0;
@@ -817,6 +879,7 @@ function resetWeek() {
         currentDistractionCount: 0,
         currentBreakCount: 0,
         sessionState: "idle",
+        resumeEnvironmentAfterBreak: false,
         timerStartedAt: null,
         timerEndsAt: null,
         timeLeft: state.sessionDuration * 60
@@ -1264,17 +1327,25 @@ function renderStatusBits() {
     elements.focusDistractionCounter.textContent = `${state.currentDistractionCount} / ${CONFIG.distractionLimit}`;
     elements.focusBreakCounter.textContent = `${state.currentBreakCount} / ${CONFIG.breakLimit}`;
     elements.timerNote.textContent = getTimerNote();
-    elements.startBtn.disabled = state.sessionState === "running";
-    elements.startBtn.textContent = state.sessionState === "running" ? "Session Running" : "Start Session";
+    const sessionIsActive = state.sessionState === "running" || state.sessionState === "paused";
+    elements.startBtn.disabled = sessionIsActive;
+    elements.startBtn.textContent = state.sessionState === "paused"
+        ? "Session Paused"
+        : state.sessionState === "running"
+            ? "Session Running"
+            : "Start Session";
     elements.welcomeMessage.textContent = getWelcomeMessage();
     elements.heroPurpose.textContent = getHeroPurpose();
 }
 
 function renderSessionControls() {
     const isDisabled = state.sessionState === "idle";
-    [elements.completeBtn, elements.distractedBtn, elements.breakBtn, elements.failBtn].forEach((button) => {
-        button.disabled = isDisabled;
-    });
+    elements.completeBtn.disabled = isDisabled;
+    elements.failBtn.disabled = isDisabled;
+    elements.distractedBtn.disabled = state.sessionState !== "running";
+    elements.breakBtn.disabled = isDisabled || state.sessionState === "awaiting-result";
+    elements.breakBtn.textContent = state.sessionState === "paused" ? "Resume" : "Break";
+    elements.breakBtn.setAttribute("aria-pressed", String(state.sessionState === "paused"));
 }
 
 function renderTimer() {
@@ -1286,10 +1357,12 @@ function renderTimer() {
     const seconds = String(displaySeconds % 60).padStart(2, "0");
     const timeString = `${minutes}:${seconds}`;
     elements.timerDisplay.textContent = timeString;
-    elements.clearSystemTaskBtn.hidden = !state.systemTask || state.sessionState === "running";
+    elements.clearSystemTaskBtn.hidden = !state.systemTask || state.sessionState === "running" || state.sessionState === "paused";
 
     if (state.sessionState === "running") {
         document.title = `${timeString} — Friction`;
+    } else if (state.sessionState === "paused") {
+        document.title = `${timeString} paused — Friction`;
     } else if (state.sessionState === "awaiting-result") {
         document.title = "⏰ Time's up — Friction";
     } else {
@@ -1396,7 +1469,8 @@ function renderFocusEnvironment() {
         : "No saved custom source yet.";
     elements.openCustomLinkBtn.disabled = !state.focusEnvironment.customLink;
     elements.removeCustomLinkBtn.disabled = !state.focusEnvironment.customLink;
-    elements.environmentPlayBtn.disabled = !descriptor.isGenerated && descriptor.embedUrl === "about:blank";
+    elements.environmentPlayBtn.disabled = state.sessionState === "paused"
+        || (!descriptor.isGenerated && descriptor.embedUrl === "about:blank");
     elements.environmentPauseBtn.disabled = !descriptor.canPause;
     elements.focusMediaTitle.textContent = descriptor.title;
     elements.focusMediaCaption.textContent = descriptor.caption;
@@ -1480,6 +1554,10 @@ function getSessionStatusLabel() {
         return "Awaiting Result";
     }
 
+    if (state.sessionState === "paused") {
+        return "Paused";
+    }
+
     return "Ready";
 }
 
@@ -1492,6 +1570,13 @@ function getTimerNote() {
         return "Timer finished. Record the result to update your streak and pet.";
     }
 
+    if (state.sessionState === "paused") {
+        const descriptor = getCurrentEnvironmentDescriptor();
+        return descriptor.provider === "spotify"
+            ? "Timer paused. Spotify playback was stopped by reloading its player; restart it there after you resume."
+            : "Timer and study audio are paused. Press Resume when you are ready.";
+    }
+
     return state.systemTask
         ? `System action: ${state.systemTask}`
         : "Start a focus block and let the clock run while you work.";
@@ -1500,6 +1585,10 @@ function getTimerNote() {
 function getWelcomeMessage() {
     if (state.sessionState === "running") {
         return "You are in the middle of a focus session. Keep the noise down and protect the streak.";
+    }
+
+    if (state.sessionState === "paused") {
+        return "Your focus session is paused. Resume when you are ready to keep going.";
     }
 
     if (state.weeklyCompleted >= state.nextPetRewardThreshold - 1) {
@@ -2325,6 +2414,12 @@ function selectBuiltInTrack(environmentKey, trackId) {
 }
 
 function playEnvironment() {
+    if (state.sessionState === "paused") {
+        updateOutput("Resume the focus session before restarting study audio.");
+        render();
+        return;
+    }
+
     const descriptor = getCurrentEnvironmentDescriptor();
     if (descriptor.embedUrl === "about:blank") {
         updateOutput(descriptor.emptyMessage || "Pick a study source first or save a custom YouTube or Spotify link.");

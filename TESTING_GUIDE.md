@@ -73,13 +73,13 @@ Mark exactly one result for each case after following its prerequisites, steps, 
 
 ### FR-011 Session Controls And Counters — P1
 
-- Steps: attempt every outcome while idle; start; add distractions and breaks; complete; repeat with fail.
-- Expected: outcome controls are disabled while idle; running counters match clicks exactly; weekly and lifetime totals increment once; a mixed completion is not a clean streak; double submission is impossible.
+- Steps: attempt every outcome while idle; start; add a distraction; take a break; wait; refresh; resume; complete; repeat with fail.
+- Expected: outcome controls are disabled while idle; Break pauses the timer and supported study audio, increments once, survives refresh, and becomes Resume; Resume continues without adding another break; running counters match actions exactly; weekly and lifetime totals increment once; a mixed completion is not a clean streak; double submission is impossible.
 
 ### FR-012 Threshold Penalties — P1
 
 - Steps: run sessions with three distractions, three breaks, and two consecutive failures.
-- Expected: third distraction sets the next session to 10 minutes; third break subtracts one 5-minute step; each failed result changes duration by no more than one adaptive step; duration never leaves 10–60 minutes.
+- Expected: third distraction sets the next session to 10 minutes; three distinct pause/resume breaks subtract one 5-minute step; each failed result changes duration by no more than one adaptive step; duration never leaves 10–60 minutes.
 
 ### FR-013 Clean Streak Bonus — P1
 

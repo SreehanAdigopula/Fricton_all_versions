@@ -74,6 +74,47 @@ test.describe("Friction core focus workflow", () => {
         await expect(page.locator("#weeklyDistractions")).toHaveText("1.00");
     });
 
+    test("break pauses and resumes the timer and previously playing study audio", async ({ appPage }) => {
+        const { page } = appPage;
+        await openFresh(page);
+        await openFocus(page);
+        await page.locator("#startBtn").click();
+        await page.locator("#environmentPlayBtn").click();
+        await page.waitForTimeout(1_100);
+
+        await page.locator("#breakBtn").click();
+        let state = await getState(page);
+        const pausedAt = state.timeLeft;
+        expect(state.sessionState).toBe("paused");
+        expect(state.currentBreakCount).toBe(1);
+        expect(state.totalBreakCount).toBe(1);
+        expect(state.focusEnvironment.isPlaying).toBe(false);
+        expect(state.resumeEnvironmentAfterBreak).toBe(true);
+        await expect(page.locator("#breakBtn")).toHaveText("Resume");
+        await expect(page.locator("#sessionStatus")).toHaveText("Paused");
+        await expect(page.locator("#distractedBtn")).toBeDisabled();
+        await expect(page.locator("#environmentPlayBtn")).toBeDisabled();
+
+        await page.waitForTimeout(1_100);
+        state = await getState(page);
+        expect(state.timeLeft).toBe(pausedAt);
+
+        await page.reload();
+        await expect(page.locator("#sessionStatus")).toHaveText("Paused");
+        await expect(page.locator("#timerDisplay")).toHaveText(`${Math.floor(pausedAt / 60)}:${String(pausedAt % 60).padStart(2, "0")}`);
+        await page.locator("#breakBtn").click();
+        state = await getState(page);
+        expect(state.sessionState).toBe("running");
+        expect(state.currentBreakCount).toBe(1);
+        expect(state.totalBreakCount).toBe(1);
+        expect(state.focusEnvironment.isPlaying).toBe(true);
+        expect(state.resumeEnvironmentAfterBreak).toBe(false);
+        await expect(page.locator("#breakBtn")).toHaveText("Break");
+        await page.waitForTimeout(1_100);
+        state = await getState(page);
+        expect(state.timeLeft).toBeLessThan(pausedAt);
+    });
+
     test("distraction and break thresholds apply one bounded penalty", async ({ appPage }) => {
         const { page } = appPage;
         await openFresh(page);
@@ -89,7 +130,10 @@ test.describe("Friction core focus workflow", () => {
         await openFresh(page);
         await openFocus(page);
         await page.locator("#startBtn").click();
-        for (let index = 0; index < 3; index += 1) await page.locator("#breakBtn").click();
+        for (let index = 0; index < 3; index += 1) {
+            await page.locator("#breakBtn").click();
+            if (index < 2) await page.locator("#breakBtn").click();
+        }
         state = await getState(page);
         expect(state.sessionDuration).toBe(25);
         await page.locator("#completeBtn").click();

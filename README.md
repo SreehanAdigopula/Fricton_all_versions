@@ -5,7 +5,7 @@ Friction is a hand-drawn adaptive focus app for students. It combines a focus ti
 ## Features
 
 - Local browser storage with no login required.
-- Adaptive focus timer that reacts to completions, distractions, breaks, and failed sessions.
+- Adaptive focus timer with persisted break/resume controls that reacts to completions, distractions, breaks, and failed sessions.
 - Pet buddy system with growth stages and recoverable small/sad stress forms.
 - Built-in study environments and custom public YouTube/Spotify playlist links.
 - Thought Parking Lot for saving distractions until later.
