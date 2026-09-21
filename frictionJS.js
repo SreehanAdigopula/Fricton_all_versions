@@ -85,6 +85,7 @@ const defaultState = {
     currentBreakCount: 0,
     weeklyCompleted: 0,
     weeklyDistractionTotal: 0,
+    weeklyBreakTotal: 0,
     weeklySessionCount: 0,
     totalCompletedSessions: 0,
     totalFailedSessions: 0,
@@ -394,6 +395,12 @@ function sanitizeState(savedState) {
         currentBreakCount: toPositiveNumber(savedState.currentBreakCount, 0),
         weeklyCompleted: toPositiveNumber(savedState.weeklyCompleted, 0),
         weeklyDistractionTotal: toPositiveNumber(savedState.weeklyDistractionTotal, 0),
+        weeklyBreakTotal: Object.hasOwn(savedState, "weeklyBreakTotal")
+            ? toPositiveNumber(savedState.weeklyBreakTotal, 0)
+            : Math.max(
+                0,
+                toPositiveNumber(savedState.totalBreakCount, 0) - toPositiveNumber(savedState.currentBreakCount, 0)
+            ),
         weeklySessionCount: toPositiveNumber(savedState.weeklySessionCount, 0),
         totalCompletedSessions: toPositiveNumber(savedState.totalCompletedSessions, savedState.weeklyCompleted || 0),
         totalFailedSessions: toPositiveNumber(savedState.totalFailedSessions, 0),
@@ -819,6 +826,7 @@ function finalizeSessionBase() {
     stopTimer();
     state.weeklySessionCount += 1;
     state.weeklyDistractionTotal += state.currentDistractionCount;
+    state.weeklyBreakTotal += state.currentBreakCount;
     state.sessionState = "idle";
     state.resumeEnvironmentAfterBreak = false;
     state.timerStartedAt = null;
@@ -870,6 +878,7 @@ function resetWeek() {
         ...state,
         weeklyCompleted: 0,
         weeklyDistractionTotal: 0,
+        weeklyBreakTotal: 0,
         weeklySessionCount: 0,
         failStreak: 0,
         successStreak: 0,
@@ -1300,7 +1309,6 @@ function render() {
     renderFocusEnvironment();
     renderMotivation();
     renderParkingLot();
-    syncFocusEnvironment();
 }
 
 function renderTabs() {
@@ -1322,8 +1330,8 @@ function renderStatusBits() {
     elements.weeklyHeadline.textContent = `${state.weeklyCompleted} completed this week`;
     elements.weeklyCompleted.textContent = String(state.weeklyCompleted);
     elements.weeklyDistractions.textContent = getWeeklyAverage().toFixed(2);
-    elements.breakInfo.textContent = String(state.currentBreakCount);
-    elements.distractionInfo.textContent = String(state.currentDistractionCount);
+    elements.breakInfo.textContent = String(state.weeklyBreakTotal + state.currentBreakCount);
+    elements.distractionInfo.textContent = String(state.weeklyDistractionTotal + state.currentDistractionCount);
     elements.focusDistractionCounter.textContent = `${state.currentDistractionCount} / ${CONFIG.distractionLimit}`;
     elements.focusBreakCounter.textContent = `${state.currentBreakCount} / ${CONFIG.breakLimit}`;
     elements.timerNote.textContent = getTimerNote();

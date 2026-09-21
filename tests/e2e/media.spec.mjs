@@ -1,4 +1,4 @@
-import { expect, openFocus, openFresh, test } from "./helpers.mjs";
+import { expect, getState, openFocus, openFresh, test } from "./helpers.mjs";
 
 const collections = [
     {
@@ -47,6 +47,26 @@ test("all 12 built-in sources map to the intended YouTube embed", async ({ appPa
 
 test("media controls remain usable while a focus timer runs", async ({ appPage }) => {
     const { page } = appPage;
+    const mediaCommands = [];
+    page.on("console", (message) => {
+        if (message.text().startsWith("MOCK_YOUTUBE_COMMAND:")) {
+            mediaCommands.push(message.text().replace("MOCK_YOUTUBE_COMMAND:", ""));
+        }
+    });
+    await page.route(/https:\/\/(?:www\.)?youtube\.com\/embed\/.*/, async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: "text/html",
+            body: `<!doctype html><title>Mock YouTube Player</title><script>
+                window.addEventListener("message", (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.func) console.log("MOCK_YOUTUBE_COMMAND:" + message.func);
+                    } catch {}
+                });
+            </script>`
+        });
+    });
     await openFresh(page);
     await openFocus(page);
     await page.locator("#startBtn").click();
@@ -56,5 +76,18 @@ test("media controls remain usable while a focus timer runs", async ({ appPage }
     await expect(page.locator("#sessionStatus")).toHaveText("Running");
     await expect(page.locator("#environmentVolumeValue")).toHaveText("35%");
     await page.locator("#environmentPauseBtn").click();
+    await expect.poll(() => mediaCommands.filter((command) => command === "pauseVideo").length).toBeGreaterThan(0);
+    let state = await getState(page);
+    expect(state.focusEnvironment.isPlaying).toBe(false);
+    const playCommandsAfterPause = mediaCommands.filter((command) => command === "playVideo").length;
+
+    await page.locator("#tabHome").click();
+    state = await getState(page);
+    expect(state.focusEnvironment.isPlaying).toBe(false);
+    await page.locator("#tabFocus").click();
+    state = await getState(page);
+    expect(state.focusEnvironment.isPlaying).toBe(false);
+    await page.waitForTimeout(250);
+    expect(mediaCommands.filter((command) => command === "playVideo").length).toBe(playCommandsAfterPause);
     await expect(page.locator("#focusMediaFrame")).toBeVisible();
 });

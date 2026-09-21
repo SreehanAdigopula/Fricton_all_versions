@@ -70,8 +70,12 @@ test.describe("Friction core focus workflow", () => {
         expect(state.totalCompletedSessions).toBe(1);
         expect(state.totalDistractionCount).toBe(1);
         expect(state.totalBreakCount).toBe(1);
+        expect(state.weeklyDistractionTotal).toBe(1);
+        expect(state.weeklyBreakTotal).toBe(1);
         expect(state.successStreak).toBe(0);
         await expect(page.locator("#weeklyDistractions")).toHaveText("1.00");
+        await expect(page.locator("#distractionInfo")).toHaveText("1");
+        await expect(page.locator("#breakInfo")).toHaveText("1");
     });
 
     test("break pauses and resumes the timer and previously playing study audio", async ({ appPage }) => {
@@ -113,6 +117,33 @@ test.describe("Friction core focus workflow", () => {
         await page.waitForTimeout(1_100);
         state = await getState(page);
         expect(state.timeLeft).toBeLessThan(pausedAt);
+    });
+
+    test("weekly distraction and break cards include active events and survive completion", async ({ appPage }) => {
+        const { page } = appPage;
+        await openFresh(page);
+        await openFocus(page);
+        await page.locator("#startBtn").click();
+        await page.locator("#distractedBtn").click();
+        await page.locator("#distractedBtn").click();
+        await page.locator("#distractedBtn").click();
+        await page.locator("#breakBtn").click();
+
+        await page.locator("#tabHome").click();
+        await expect(page.locator("#distractionInfo")).toHaveText("3");
+        await expect(page.locator("#breakInfo")).toHaveText("1");
+
+        await page.locator("#tabFocus").click();
+        await page.locator("#completeBtn").click();
+        await page.locator("#tabHome").click();
+        await expect(page.locator("#distractionInfo")).toHaveText("3");
+        await expect(page.locator("#breakInfo")).toHaveText("1");
+
+        const state = await getState(page);
+        expect(state.weeklyDistractionTotal).toBe(3);
+        expect(state.weeklyBreakTotal).toBe(1);
+        expect(state.currentDistractionCount).toBe(0);
+        expect(state.currentBreakCount).toBe(0);
     });
 
     test("distraction and break thresholds apply one bounded penalty", async ({ appPage }) => {
