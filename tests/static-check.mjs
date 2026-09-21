@@ -42,7 +42,7 @@ for (const file of htmlFiles) {
 const mainHtml = readFileSync(resolve(root, "friction_html.html"), "utf8");
 check(/id="tabMotivation"[^>]*disabled/.test(mainHtml), "Top System Builder control must remain disabled.");
 check(/id="motivationBtn"[^>]*disabled/.test(mainHtml), "Focus System Builder control must remain disabled.");
-check(mainHtml.includes("playlist-only-20260909"), "Main assets must use the current cache-busting version.");
+check(mainHtml.includes("focus-break-20260921"), "Main assets must use the current cache-busting version.");
 check(mainHtml.includes("YouTube links must be public playlists"), "Playlist-only YouTube guidance is missing.");
 
 const policies = readFileSync(resolve(root, "policies.html"), "utf8");
