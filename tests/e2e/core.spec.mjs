@@ -307,7 +307,10 @@ test.describe("Friction core focus workflow", () => {
         let state = await getState(page);
         expect(state.settings).toMatchObject({ theme: "forest", backgroundShape: "orbit", motionBackground: true, showHints: false, petAppearance: "owl" });
 
-        await page.evaluate(() => localStorage.setItem("unrelated-test-key", "keep"));
+        await page.evaluate(() => {
+            localStorage.setItem("unrelated-test-key", "keep");
+            localStorage.setItem("friction-system-builder-v1", JSON.stringify({ systems: [{ name: "Fictional study plan" }] }));
+        });
         await page.locator("#signOutBtn").click();
         await page.locator("#resetDataInput").fill("clear");
         await expect(page.locator("#confirmResetDataBtn")).toBeDisabled();
@@ -323,5 +326,6 @@ test.describe("Friction core focus workflow", () => {
         await expect(page.locator("body")).not.toHaveClass(/theme-forest/);
         await expect(page.locator("#timerDisplay")).toHaveText("30:00");
         expect(await page.evaluate(() => localStorage.getItem("unrelated-test-key"))).toBe("keep");
+        expect(await page.evaluate(() => localStorage.getItem("friction-system-builder-v1"))).toBeNull();
     });
 });

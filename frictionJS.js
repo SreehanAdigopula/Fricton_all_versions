@@ -1,4 +1,5 @@
 const STORAGE_KEY = "friction-v1-state";
+const SYSTEM_BUILDER_STORAGE_KEY = "friction-system-builder-v1";
 const CONFIG = {
     defaultSessionMinutes: 30,
     minimumSessionMinutes: 10,
@@ -2240,7 +2241,7 @@ function initializeLocalStorageMode() {
     elements.signOutBtn.disabled = !canUseStorage;
     elements.authUserLabel.textContent = canUseStorage ? "This Browser" : "Temporary Tab";
     elements.syncStatusLabel.textContent = canUseStorage
-        ? "Progress saves privately in this browser. No login needed."
+        ? "Progress saves on this browser, without a login. Anyone using this browser profile can see it."
         : "Local saving is blocked, so progress may disappear when this tab closes.";
     render();
 }
@@ -2285,6 +2286,7 @@ function confirmLocalDataReset() {
     }
 
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(SYSTEM_BUILDER_STORAGE_KEY);
     window.location.reload();
 }
 
@@ -3361,7 +3363,7 @@ function buildCustomEmbedUrl(rawUrl) {
     if (youtubeMatch) {
         const originParam = window.location.protocol === "file:"
             ? ""
-            : `&origin=${encodeURIComponent(window.location.origin)}&widget_referrer=${encodeURIComponent(window.location.href)}`;
+            : `&origin=${encodeURIComponent(window.location.origin)}&widget_referrer=${encodeURIComponent(window.location.origin + window.location.pathname)}`;
         if (youtubeMatch.type === "playlist") {
             if (youtubeMatch.videoId) {
                 return `${youtubeEmbedBase}/${youtubeMatch.videoId}?enablejsapi=1&controls=1&rel=0&loop=1&list=${youtubeMatch.value}&playlist=${youtubeMatch.videoId}${originParam}`;
@@ -3398,6 +3400,9 @@ function getCustomMediaType(rawUrl) {
 function extractYouTubeData(urlString) {
     try {
         const url = new URL(urlString);
+        if (url.protocol !== "https:" || url.username || url.password) {
+            return null;
+        }
         const host = url.hostname.toLowerCase().replace(/^www\./, "");
         const isShortHost = host === "youtu.be";
         const isYouTubeHost = host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com";
@@ -3466,6 +3471,9 @@ function normalizeYouTubePlaylistId(value) {
 function isYouTubePlaylistPage(urlString) {
     try {
         const url = new URL(urlString);
+        if (url.protocol !== "https:" || url.username || url.password) {
+            return false;
+        }
         const host = url.hostname.toLowerCase().replace(/^www\./, "");
         const isYouTubeHost = host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com";
         return isYouTubeHost && url.pathname.replace(/\/+$/, "") === "/playlist";
@@ -3491,6 +3499,9 @@ function capitalizeWord(value) {
 function extractSpotifyData(urlString) {
     try {
         const url = new URL(urlString);
+        if (url.protocol !== "https:" || url.username || url.password) {
+            return null;
+        }
         const host = url.hostname.toLowerCase().replace(/^www\./, "");
         if (host !== "open.spotify.com") {
             return null;

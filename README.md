@@ -14,19 +14,19 @@ Friction is a hand-drawn adaptive focus app for students. It combines a focus ti
 
 ## Run Locally
 
-From the project folder:
+From the project folder, start the preview server that serves only public app files:
 
 ```bash
-python3 -m http.server 8004 --bind 127.0.0.1
+node tests/server.mjs
 ```
 
 Then open the matching local address:
 
 ```text
-http://127.0.0.1:8004/friction_html.html
+http://127.0.0.1:4173/friction_html.html
 ```
 
-If that port is busy, use another open port and update the address to match.
+Stop the preview server with Ctrl+C when you finish.
 
 ## Notes
 

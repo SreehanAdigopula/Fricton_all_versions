@@ -1,9 +1,25 @@
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, lstatSync } from "node:fs";
 import { createServer } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, resolve } from "node:path";
 
 const root = resolve(process.cwd());
 const port = 4173;
+const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+const publicFiles = new Set([
+    "app-rules.html",
+    "favicon.svg",
+    "fictioncss.css",
+    "friction-logo.svg",
+    "frictionJS.js",
+    "friction_html.html",
+    "policies.html",
+    "system-builder-testing.html"
+]);
+const routeAliases = new Map([
+    ["/", "friction_html.html"],
+    ["/index.html", "friction_html.html"],
+    ["/system-builder.html", "system-builder-testing.html"]
+]);
 const mimeTypes = {
     ".css": "text/css; charset=utf-8",
     ".html": "text/html; charset=utf-8",
@@ -21,24 +37,57 @@ const securityHeaders = {
 };
 
 const server = createServer((request, response) => {
-    const requestPath = new URL(request.url || "/", "http://127.0.0.1").pathname;
-    const routePath = requestPath === "/" || requestPath === "/index.html"
-        ? "/friction_html.html"
-        : requestPath;
-    const relativePath = normalize(decodeURIComponent(routePath)).replace(/^([/\\])+/, "");
-    const filePath = resolve(join(root, relativePath));
+    if (!allowedHosts.has(String(request.headers.host || "").toLowerCase())) {
+        response.writeHead(403, securityHeaders);
+        response.end("Forbidden");
+        return;
+    }
 
-    if (!filePath.startsWith(`${root}/`) || !existsSync(filePath) || !statSync(filePath).isFile()) {
+    let requestPath;
+    try {
+        requestPath = decodeURIComponent(new URL(request.url || "/", `http://127.0.0.1:${port}`).pathname);
+    } catch {
+        response.writeHead(400, securityHeaders);
+        response.end("Bad request");
+        return;
+    }
+
+    const fileName = routeAliases.get(requestPath) || requestPath.slice(1);
+    if (!publicFiles.has(fileName) || (requestPath !== `/${fileName}` && !routeAliases.has(requestPath))) {
         response.writeHead(404, securityHeaders);
         response.end("Not found");
         return;
     }
 
-    response.writeHead(200, {
-        ...securityHeaders,
-        "Content-Type": mimeTypes[extname(filePath)] || "application/octet-stream"
+    const filePath = resolve(root, fileName);
+    try {
+        if (!lstatSync(filePath).isFile()) {
+            response.writeHead(404, securityHeaders);
+            response.end("Not found");
+            return;
+        }
+    } catch {
+        response.writeHead(404, securityHeaders);
+        response.end("Not found");
+        return;
+    }
+
+    const stream = createReadStream(filePath);
+    stream.on("open", () => {
+        response.writeHead(200, {
+            ...securityHeaders,
+            "Content-Type": mimeTypes[extname(filePath)] || "application/octet-stream"
+        });
+        stream.pipe(response);
     });
-    createReadStream(filePath).pipe(response);
+    stream.on("error", () => {
+        if (response.headersSent) {
+            response.destroy();
+        } else {
+            response.writeHead(404, securityHeaders);
+            response.end("Not found");
+        }
+    });
 });
 
 server.listen(port, "127.0.0.1", () => {
